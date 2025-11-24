@@ -60,11 +60,6 @@ st.markdown("""
 # Pas de cache pour permettre les mises à jour
 def get_data_manager():
     """Initialise le DataManager (sans cache pour permettre affectations)."""
-    return init_data_manager(
-        credentials_file='/Users/mac/Documents/DSMIA_PFE/PMO_Orchestre/credentials.json',
-        sheet_id='1TFCyjjWZirBQG45xXnJ8vzHMo5YrhkiIwHdHaMx7lfs'
-    def get_data_manager():
-    """Initialise le DataManager (sans cache pour permettre affectations)."""
     # Charger credentials depuis Streamlit Cloud ou local
     if 'gcp_service_account' in st.secrets:
         # En production (Streamlit Cloud)
