@@ -1,0 +1,10 @@
+```
+*(appuyez sur Entrée)*
+
+Une fenêtre d'édition va s'ouvrir. **Tapez ou collez** ce texte :
+```
+credentials.json
+__pycache__/
+*.pyc
+.env
+.DS_Store
