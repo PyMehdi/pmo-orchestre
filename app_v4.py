@@ -63,6 +63,24 @@ def get_data_manager():
     return init_data_manager(
         credentials_file='/Users/mac/Documents/DSMIA_PFE/PMO_Orchestre/credentials.json',
         sheet_id='1TFCyjjWZirBQG45xXnJ8vzHMo5YrhkiIwHdHaMx7lfs'
+    def get_data_manager():
+    """Initialise le DataManager (sans cache pour permettre affectations)."""
+    # Charger credentials depuis Streamlit Cloud ou local
+    if 'gcp_service_account' in st.secrets:
+        # En production (Streamlit Cloud)
+        import json
+        credentials_dict = dict(st.secrets["gcp_service_account"])
+        # Sauvegarder temporairement pour data_manager
+        with open('/tmp/credentials.json', 'w') as f:
+            json.dump(credentials_dict, f)
+        credentials_file = '/tmp/credentials.json'
+    else:
+        # En local
+        credentials_file = '/Users/mac/Documents/DSMIA_PFE/PMO_Orchestre/credentials.json'
+    
+    return init_data_manager(
+        credentials_file=credentials_file,
+        sheet_id='1TFCyjjWZirBQG45xXnJ8vzHMo5YrhkiIwHdHaMx7lfs'
     )
 
 def init_session_state():
