@@ -229,7 +229,7 @@ def page_dashboard():
             'Projets_Actifs': 'Nb Projets',
             'Taux_Calc': 'Taux'
         }),
-        width='stretch',
+        use_container_width=True,
         hide_index=True
     )
     
@@ -558,7 +558,7 @@ def page_projets():
     
     st.dataframe(
         df_display,
-        width='stretch',
+        use_container_width=True,
         hide_index=True
     )
     
@@ -624,7 +624,7 @@ def page_chefs():
     # Affichage tableau
     st.dataframe(
         df_display,
-        width='stretch',
+        use_container_width=True,
         hide_index=True
     )
 
