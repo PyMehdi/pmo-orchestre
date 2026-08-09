@@ -10,7 +10,7 @@ Date : Novembre 2025
 """
 
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple
