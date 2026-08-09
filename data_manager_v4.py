@@ -49,9 +49,9 @@ class DataManagerV4:
                 'https://spreadsheets.google.com/feeds',
                 'https://www.googleapis.com/auth/drive'
             ]
-            credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            credentials = Credentials.from_service_account_file(
                 self.credentials_file, 
-                scope
+                scopes=scope
             )
             self.client = gspread.authorize(credentials)
             self.spreadsheet = self.client.open_by_key(self.sheet_id)
