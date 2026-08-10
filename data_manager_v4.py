@@ -348,8 +348,13 @@ class DataManagerV4:
                 if poids_moyen is None or poids_moyen == '':
                     continue
                 
-                # Conversion fraction (0-1) -> points sur 100
-                poids_points = round(float(poids_moyen) * 100, 2)
+                # Gestion robuste : soit "15%" (texte formaté Sheets),
+                # soit 0.15 (fraction numérique)
+                poids_str = str(poids_moyen).strip()
+                if poids_str.endswith('%'):
+                    poids_points = round(float(poids_str[:-1].strip()), 2)
+                else:
+                    poids_points = round(float(poids_str) * 100, 2)
                 
                 if nom_sheet in MAPPING_CHARGE:
                     ponderations['charge'][MAPPING_CHARGE[nom_sheet]] = poids_points
