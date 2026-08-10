@@ -239,8 +239,8 @@ def page_dashboard():
     st.subheader("👥 Utilisation des chefs de projet")
     
     for _, chef in chefs_summary.iterrows():
-        # Vérifier si Statut existe
-        if 'Statut' in chef.index and chef.get('Statut') != 'Actif':
+        # Exclure uniquement les chefs explicitement indisponibles
+        if 'Statut' in chef.index and chef.get('Statut') == 'Indisponible':
             continue
         
         # Utiliser taux calculé
