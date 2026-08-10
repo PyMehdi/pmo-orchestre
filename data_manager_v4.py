@@ -312,68 +312,80 @@ class DataManagerV4:
         Returns:
             Dict avec structure :
             {
-                'charge': {parametre: poids_moyen},
-                'capacite': {parametre: poids}
+                'charge': {parametre: poids_points_sur_100},
+                'capacite': {parametre: poids_points_sur_100}
             }
         """
+        # Mapping noms Sheet (avec espaces/accents) -> clés code (avec underscores)
+        MAPPING_CHARGE = {
+            'Charge JH': 'Charge_JH',
+            'Complexité Tech': 'Complexite_Tech',
+            'Budget': 'Budget',
+            'Niveau Risque': 'Niveau_Risque',
+            'Nb Intervenants': 'Nb_Intervenants',
+            'Type Client': 'Engagement_Client',
+            'Fréq Instances': 'Freq_Instances',
+            'Dispersion Géo': 'Dispersion_Geo',
+        }
+        MAPPING_CAPACITE = {
+            'Expérience': 'Annees_Experience',
+            'Compétences Tech': 'Competences_Tech',
+            'Compétences Mgmt': 'Competences_Mgmt',
+            'Utilisation IA': 'Utilisation_IA',
+        }
+        
         try:
             ws = self.spreadsheet.worksheet('Ponderations')
             data = ws.get_all_records()
             df = pd.DataFrame(data)
             
-            # Structure retour
-            ponderations = {
-                'charge': {},
-                'capacite': {}
+            ponderations = {'charge': {}, 'capacite': {}}
+            
+            for _, row in df.iterrows():
+                nom_sheet = str(row.get('Paramètre', '')).strip()
+                poids_moyen = row.get('Poids_Moyen', row.get(' Poids_Moyen ', None))
+                
+                if poids_moyen is None or poids_moyen == '':
+                    continue
+                
+                # Conversion fraction (0-1) -> points sur 100
+                poids_points = round(float(poids_moyen) * 100, 2)
+                
+                if nom_sheet in MAPPING_CHARGE:
+                    ponderations['charge'][MAPPING_CHARGE[nom_sheet]] = poids_points
+                elif nom_sheet in MAPPING_CAPACITE:
+                    ponderations['capacite'][MAPPING_CAPACITE[nom_sheet]] = poids_points
+            
+            # Sécurité : si lecture incomplète, compléter avec défauts
+            defauts_charge = {
+                'Charge_JH': 19.75, 'Complexite_Tech': 18.5, 'Budget': 14.9,
+                'Niveau_Risque': 16.8, 'Nb_Intervenants': 11.25,
+                'Engagement_Client': 9.3, 'Freq_Instances': 4.65, 'Dispersion_Geo': 4.9
             }
-            
-            # Paramètres charge (projets)
-            params_charge = [
-                'Charge_JH', 'Complexite_Tech', 'Budget', 'Niveau_Risque',
-                'Nb_Intervenants', 'Engagement_Client', 'Freq_Instances', 
-                'Dispersion_Geo'
-            ]
-            
-            for param in params_charge:
-                row = df[df['Paramètre'] == param]
-                if len(row) > 0:
-                    # Utiliser Poids_Moyen (colonne D)
-                    poids = row.iloc[0].get('Poids_Moyen', 0)
-                    ponderations['charge'][param] = float(poids)
-            
-            # Paramètres capacité (chefs) - À définir si besoin
-            # Pour l'instant, valeurs par défaut
-            ponderations['capacite'] = {
-                'Competences_Mgmt': 35.0,
-                'Annees_Experience': 30.0,
-                'Competences_Tech': 25.0,
-                'Utilisation_IA': 10.0
+            defauts_capacite = {
+                'Competences_Mgmt': 35.0, 'Annees_Experience': 30.0,
+                'Competences_Tech': 25.0, 'Utilisation_IA': 10.0
             }
+            for k, v in defauts_charge.items():
+                ponderations['charge'].setdefault(k, v)
+            for k, v in defauts_capacite.items():
+                ponderations['capacite'].setdefault(k, v)
             
             return ponderations
             
         except Exception as e:
             print(f"❌ Erreur lecture pondérations : {str(e)}")
-            # Valeurs par défaut
             return {
                 'charge': {
-                    'Charge_JH': 19.75,
-                    'Complexite_Tech': 18.5,
-                    'Budget': 14.9,
-                    'Niveau_Risque': 16.8,
-                    'Nb_Intervenants': 11.25,
-                    'Engagement_Client': 9.3,
-                    'Freq_Instances': 4.65,
-                    'Dispersion_Geo': 4.9
+                    'Charge_JH': 19.75, 'Complexite_Tech': 18.5, 'Budget': 14.9,
+                    'Niveau_Risque': 16.8, 'Nb_Intervenants': 11.25,
+                    'Engagement_Client': 9.3, 'Freq_Instances': 4.65, 'Dispersion_Geo': 4.9
                 },
                 'capacite': {
-                    'Competences_Mgmt': 35.0,
-                    'Annees_Experience': 30.0,
-                    'Competences_Tech': 25.0,
-                    'Utilisation_IA': 10.0
+                    'Competences_Mgmt': 35.0, 'Annees_Experience': 30.0,
+                    'Competences_Tech': 25.0, 'Utilisation_IA': 10.0
                 }
-            }
-    
+            }    
     # ========================================
     # PLANIFICATION HEBDOMADAIRE
     # ========================================
