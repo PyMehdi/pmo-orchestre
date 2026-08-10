@@ -369,114 +369,98 @@ class AlgorithmeAffectationV4:
         self,
         projet: Dict,
         chef: Dict,
-        taux_utilisation: float,
+        charge_actuelle_h: float,
         experience_sectorielle: bool = False
-    ) -> float:
+    ) -> Tuple[float, float, bool]:
         """
-        Calcule le score de compatibilité chef/projet.
+        Calcule le score de compatibilité chef/projet (V2 - formule unifiée).
         
-        Formule: S = α×(ICC/ICM) + β×(1-U) + γ×E
-        
-        Args:
-            projet: Dict projet avec ICM
-            chef: Dict chef avec ICC
-            taux_utilisation: Taux actuel 0-1
-            experience_sectorielle: Boolean
+        Principe : un seul référentiel de capacité (celle du chef, en heures),
+        utilisé à la fois pour l'adéquation, la disponibilité et l'alerte surcharge.
         
         Returns:
-            Score 0-100
+            (score, taux_future_pct, surcharge_bool)
         """
         icc = chef.get('Capacite_Max', 100)
         icm = projet.get('Indice_Charge', 50)
         
-        # Composante 1 : Adéquation (60%)
-        adequation = COEFF_ADEQUATION * (icc / icm if icm > 0 else 0)
+        capacite_h = icc_to_heures_semaine(icc)
+        charge_projet_h = icm_to_heures_semaine(icm)
+        charge_future_h = charge_actuelle_h + charge_projet_h
+        taux_future = (charge_future_h / capacite_h) if capacite_h > 0 else 999
         
-        # Composante 2 : Disponibilité (30%)
-        disponibilite = COEFF_DISPONIBILITE * (1 - taux_utilisation)
+        # Composante 1 : Adéquation (60%) — plafonnée à 1.0
+        ratio_adequation = min(icc / icm, 1.0) if icm > 0 else 0
+        adequation = COEFF_ADEQUATION * ratio_adequation
+        
+        # Composante 2 : Disponibilité POST-affectation (30%), capacité personnelle
+        marge_post = max(0, 1 - taux_future)
+        disponibilite = COEFF_DISPONIBILITE * marge_post
         
         # Composante 3 : Expérience sectorielle (10%)
         bonus_exp = COEFF_EXPERIENCE_SECTEUR * (1 if experience_sectorielle else 0)
         
-        score = (adequation + disponibilite + bonus_exp) * 100
+        score = min(round((adequation + disponibilite + bonus_exp) * 100, 1), 100.0)
+        surcharge = taux_future > 1.0
         
-        # Plafonner à 100
-        return min(round(score, 1), 100.0)
+        return score, round(taux_future * 100, 1), surcharge
     
     # ========================================
     # RECOMMANDATION AFFECTATION
     # ========================================
     
-    def recommander_affectation(
-        self,
-        projet: Dict,
-        chefs_df: pd.DataFrame,
-        projets_df: pd.DataFrame,
-        chef_favori_id: str = None
-    ) -> List[Dict]:
-        """
-        Recommande les meilleurs chefs pour un projet.
+def recommander_affectation(
+    self,
+    projet: Dict,
+    chefs_df: pd.DataFrame,
+    projets_df: pd.DataFrame,
+    chef_favori_id: str = None
+) -> List[Dict]:
+    """Recommande les meilleurs chefs pour un projet (V2 - formule unifiée)."""
+    recommendations = []
+    icm_projet = projet['Indice_Charge']
+    
+    for _, chef in chefs_df.iterrows():
+        util = self.calculer_taux_utilisation(
+            chef['ID_Chef'], projets_df, chefs_df
+        )
         
-        Args:
-            projet: Dict projet à affecter
-            chefs_df: DataFrame chefs
-            projets_df: DataFrame projets
-            chef_favori_id: ID du chef favori du client (bonus +10 points)
+        exp_secteur = False  # TODO: logique métier
         
-        Returns:
-            Liste de Dict triée par score décroissant
-        """
-        recommendations = []
-        icm_projet = projet['Indice_Charge']
+        score, taux_future_pct, surcharge = self.calculer_score_compatibilite(
+            projet,
+            chef.to_dict(),
+            util['charge_h_semaine'],
+            exp_secteur
+        )
         
-        for _, chef in chefs_df.iterrows():
-            # Calculer taux utilisation
-            util = self.calculer_taux_utilisation(
-                chef['ID_Chef'], 
-                projets_df,
-                chefs_df
-            )
-            
-            # Vérifier expérience sectorielle (à implémenter selon vos données)
-            exp_secteur = False  # TODO: logique métier
-            
-            # Calculer score
-            score = self.calculer_score_compatibilite(
-                projet,
-                chef.to_dict(),
-                util['taux_pct'] / 100,
-                exp_secteur
-            )
-            
-            # BONUS : Chef favori du client (+10 points)
-            if chef_favori_id and chef['ID_Chef'] == chef_favori_id:
-                score = min(score + 10, 100)  # Plafonné à 100
-                is_favori = True
-            else:
-                is_favori = False
-            
-            # Charge future si affecté
-            charge_future_h = util['charge_h_semaine'] + icm_to_heures_semaine(icm_projet)
-            
-            recommendations.append({
-                'chef_id': chef['ID_Chef'],
-                'chef_nom': chef['Nom_Prenom'],
-                'icc': chef['Capacite_Max'],
-                'icc_h_semaine': round(icc_to_heures_semaine(chef['Capacite_Max']), 1),
-                'util_pct': util['taux_pct'],
-                'charge_h_actuelle': util['charge_h_semaine'],
-                'charge_h_future': round(charge_future_h, 1),
-                'marge_h': round(HEURES_SEMAINE_PLAFOND - charge_future_h, 1),
-                'surcharge': charge_future_h > HEURES_SEMAINE_PLAFOND,
-                'score': score,
-                'is_favori': is_favori,
-                'projets_actuels': util['details_projets']
-            })
+        # BONUS : Chef favori du client (+10 points)
+        if chef_favori_id and chef['ID_Chef'] == chef_favori_id:
+            score = min(score + 10, 100)
+            is_favori = True
+        else:
+            is_favori = False
         
-        # Trier par score décroissant
-        recommendations.sort(key=lambda x: x['score'], reverse=True)
+        capacite_h = icc_to_heures_semaine(chef['Capacite_Max'])
+        charge_future_h = util['charge_h_semaine'] + icm_to_heures_semaine(icm_projet)
         
-        return recommendations
+        recommendations.append({
+            'chef_id': chef['ID_Chef'],
+            'chef_nom': chef['Nom_Prenom'],
+            'icc': chef['Capacite_Max'],
+            'icc_h_semaine': round(capacite_h, 1),
+            'util_pct': util['taux_pct'],
+            'charge_h_actuelle': util['charge_h_semaine'],
+            'charge_h_future': round(charge_future_h, 1),
+            'marge_h': round(capacite_h - charge_future_h, 1),
+            'surcharge': surcharge,
+            'score': score,
+            'is_favori': is_favori,
+            'projets_actuels': util['details_projets']
+        })
+    
+    recommendations.sort(key=lambda x: x['score'], reverse=True)
+    return recommendations
 
 
 # ========================================
