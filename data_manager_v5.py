@@ -1,12 +1,14 @@
 """
-Data Manager V4 - Gestion des données Google Sheets
+Data Manager V5 - Gestion des données Google Sheets
 ====================================================
 
 VERSION 4 : Support structure V4 (5 plages, Engagement_Client unique)
+VERSION 5 : Correction pondérations dynamiques, statuts harmonisés (Actif), formule score compatibilité unifiée (adéquation plafonnée + disponibilité post-affectation)
 
 Auteur : PFE - ENCG Settat
 Projet : PMO Orchestre
-Date : Novembre 2025
+Date v4: Novembre 2025
+Date v5: Aout 2026
 """
 
 import gspread
@@ -17,7 +19,7 @@ from typing import List, Dict, Optional, Tuple
 import sys
 
 
-class DataManagerV4:
+class DataManagerV5:
     """
     Gestionnaire de données V4 pour Google Sheets.
     
@@ -563,7 +565,7 @@ class DataManagerV4:
 # FONCTIONS UTILITAIRES
 # ========================================
 
-def init_data_manager(credentials_file: str = None, sheet_id: str = None) -> DataManagerV4:
+def init_data_manager(credentials_file: str = None, sheet_id: str = None) -> DataManagerV5:
     """
     Initialise le DataManager avec credentials par défaut si non fournis.
     
@@ -572,7 +574,7 @@ def init_data_manager(credentials_file: str = None, sheet_id: str = None) -> Dat
         sheet_id: ID Google Sheet (optionnel)
     
     Returns:
-        Instance DataManagerV4
+        Instance DataManagerV5
     """
     # Valeurs par défaut (à adapter)
     if credentials_file is None:
@@ -582,4 +584,4 @@ def init_data_manager(credentials_file: str = None, sheet_id: str = None) -> Dat
         # Votre SHEET_ID par défaut
         sheet_id = '1TFCyjjWZirBQG45xXnJ8vzHMo5YrhkiIwHdHaMx7lfs'
     
-    return DataManagerV4(credentials_file, sheet_id)
+    return DataManagerV5(credentials_file, sheet_id)
