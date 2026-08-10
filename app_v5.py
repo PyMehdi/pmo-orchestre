@@ -1,13 +1,15 @@
 """
-Application Streamlit V4 - PMO Orchestre
+Application Streamlit V5 - PMO Orchestre
 =========================================
 
 Interface web pour l'affectation intelligente des chefs de projet.
 
 VERSION 4 : Recalibrage 5 plages + Visualisation temporelle
+VERSION 5 : Corrections post-recette (affichage chefs, dépendances Streamlit 1.35, nettoyage résidus dev)
 
 Auteur : PFE - ENCG Settat
-Date : Novembre 2025
+Date v4: Novembre 2025
+Date v5: Aout 2026
 """
 
 import streamlit as st
@@ -21,8 +23,8 @@ import sys
 
 # Imports locaux
 sys.path.append('/home/claude')
-from data_manager_v4 import DataManagerV4, init_data_manager
-from algorithme_v4 import AlgorithmeAffectationV4, icm_to_heures_semaine, icc_to_heures_semaine
+from data_manager_v5 import DataManagerV5, init_data_manager
+from algorithme_v5 import AlgorithmeAffectationV5, icm_to_heures_semaine, icc_to_heures_semaine
 
 
 # ========================================
@@ -30,7 +32,7 @@ from algorithme_v4 import AlgorithmeAffectationV4, icm_to_heures_semaine, icc_to
 # ========================================
 
 st.set_page_config(
-    page_title="PMO Orchestre V4",
+    page_title="PMO Orchestre V5",
     page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -366,7 +368,7 @@ def page_affectation():
     # Bouton recommandation
     if st.button("🔍 Obtenir Recommandations", type="primary"):
         with st.spinner("Calcul en cours..."):
-            algo = AlgorithmeAffectationV4(ponderations)
+            algo = AlgorithmeAffectationV5(ponderations)
             
             # Récupérer client et son chef favori
             client_id = projet.get('ID_Client')
@@ -640,7 +642,7 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.title("🎯 PMO Orchestre V4")
+        st.title("🎯 PMO Orchestre V5")
         st.markdown("---")
         
         page = st.radio(
