@@ -138,7 +138,7 @@ class DataManagerV4:
     def get_projets_en_cours(self) -> pd.DataFrame:
         """Récupère les projets en cours."""
         df = self.get_projets()
-        return df[df['Statut'] == 'En cours']
+        return df[df['Statut'] == 'Actif']
     
     def affecter_projet(self, projet_id: str, chef_id: str) -> bool:
         """
@@ -437,7 +437,7 @@ class DataManagerV4:
         
         # Filtrer projets en cours ou à venir
         projets_actifs = projets_df[
-            projets_df['Statut'].isin(['En cours', 'Planifié'])
+            projets_df['Statut'].isin(['Actif', 'En attente'])
         ].copy()
         
         for i in range(nb_semaines):
