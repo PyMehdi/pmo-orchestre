@@ -330,7 +330,7 @@ class AlgorithmeAffectationV4:
         # Projets en cours du chef
         projets_chef = projets_df[
             (projets_df['Chef_Affecte'] == chef_id) & 
-            (projets_df['Statut'] == 'En cours')
+            (projets_df['Statut'] == 'Actif')
         ]
         
         # Charge actuelle
