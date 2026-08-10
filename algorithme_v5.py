@@ -1,8 +1,9 @@
 """
-Algorithme d'Affectation V4 - PMO Orchestre
+Algorithme d'Affectation V5 - PMO Orchestre
 ============================================
 
 VERSION 4 : Recalibrage échelle 5 plages (0, 0.2, 0.4, 0.6, 0.8, 1.0)
+VERSION 5 : Formule score compatibilité unifiée (adéquation plafonnée + disponibilité post-affectation)
 
 Modifications principales :
 - Normalisation 3 plages → 5 plages
@@ -154,7 +155,7 @@ def heures_to_icc(heures: float) -> float:
 # CLASSE ALGORITHME AFFECTATION V4
 # ========================================
 
-class AlgorithmeAffectationV4:
+class AlgorithmeAffectationV5:
     """
     Classe contenant tous les algorithmes d'affectation V4.
     """
@@ -479,7 +480,7 @@ def valider_affectation(
     Returns:
         Dict avec validation + alertes
     """
-    algo = AlgorithmeAffectationV4({
+    algo = AlgorithmeAffectationV5({
         'charge': {},
         'capacite': {}
     })
