@@ -22,7 +22,6 @@ import sys
 # import plotly.express as px
 
 # Imports locaux
-sys.path.append('/home/claude')
 from data_manager_v5 import DataManagerV5, init_data_manager
 from algorithme_v5 import AlgorithmeAffectationV5, icm_to_heures_semaine, icc_to_heures_semaine
 
