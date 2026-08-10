@@ -409,58 +409,58 @@ class AlgorithmeAffectationV4:
     # RECOMMANDATION AFFECTATION
     # ========================================
     
-def recommander_affectation(
-    self,
-    projet: Dict,
-    chefs_df: pd.DataFrame,
-    projets_df: pd.DataFrame,
-    chef_favori_id: str = None
-) -> List[Dict]:
-    """Recommande les meilleurs chefs pour un projet (V2 - formule unifiée)."""
-    recommendations = []
-    icm_projet = projet['Indice_Charge']
-    
-    for _, chef in chefs_df.iterrows():
-        util = self.calculer_taux_utilisation(
-            chef['ID_Chef'], projets_df, chefs_df
-        )
+    def recommander_affectation(
+        self,
+        projet: Dict,
+        chefs_df: pd.DataFrame,
+        projets_df: pd.DataFrame,
+        chef_favori_id: str = None
+    ) -> List[Dict]:
+        """Recommande les meilleurs chefs pour un projet (V2 - formule unifiée)."""
+        recommendations = []
+        icm_projet = projet['Indice_Charge']
         
-        exp_secteur = False  # TODO: logique métier
+        for _, chef in chefs_df.iterrows():
+            util = self.calculer_taux_utilisation(
+                chef['ID_Chef'], projets_df, chefs_df
+            )
+            
+            exp_secteur = False  # TODO: logique métier
+            
+            score, taux_future_pct, surcharge = self.calculer_score_compatibilite(
+                projet,
+                chef.to_dict(),
+                util['charge_h_semaine'],
+                exp_secteur
+            )
+            
+            # BONUS : Chef favori du client (+10 points)
+            if chef_favori_id and chef['ID_Chef'] == chef_favori_id:
+                score = min(score + 10, 100)
+                is_favori = True
+            else:
+                is_favori = False
+            
+            capacite_h = icc_to_heures_semaine(chef['Capacite_Max'])
+            charge_future_h = util['charge_h_semaine'] + icm_to_heures_semaine(icm_projet)
+            
+            recommendations.append({
+                'chef_id': chef['ID_Chef'],
+                'chef_nom': chef['Nom_Prenom'],
+                'icc': chef['Capacite_Max'],
+                'icc_h_semaine': round(capacite_h, 1),
+                'util_pct': util['taux_pct'],
+                'charge_h_actuelle': util['charge_h_semaine'],
+                'charge_h_future': round(charge_future_h, 1),
+                'marge_h': round(capacite_h - charge_future_h, 1),
+                'surcharge': surcharge,
+                'score': score,
+                'is_favori': is_favori,
+                'projets_actuels': util['details_projets']
+            })
         
-        score, taux_future_pct, surcharge = self.calculer_score_compatibilite(
-            projet,
-            chef.to_dict(),
-            util['charge_h_semaine'],
-            exp_secteur
-        )
-        
-        # BONUS : Chef favori du client (+10 points)
-        if chef_favori_id and chef['ID_Chef'] == chef_favori_id:
-            score = min(score + 10, 100)
-            is_favori = True
-        else:
-            is_favori = False
-        
-        capacite_h = icc_to_heures_semaine(chef['Capacite_Max'])
-        charge_future_h = util['charge_h_semaine'] + icm_to_heures_semaine(icm_projet)
-        
-        recommendations.append({
-            'chef_id': chef['ID_Chef'],
-            'chef_nom': chef['Nom_Prenom'],
-            'icc': chef['Capacite_Max'],
-            'icc_h_semaine': round(capacite_h, 1),
-            'util_pct': util['taux_pct'],
-            'charge_h_actuelle': util['charge_h_semaine'],
-            'charge_h_future': round(charge_future_h, 1),
-            'marge_h': round(capacite_h - charge_future_h, 1),
-            'surcharge': surcharge,
-            'score': score,
-            'is_favori': is_favori,
-            'projets_actuels': util['details_projets']
-        })
-    
-    recommendations.sort(key=lambda x: x['score'], reverse=True)
-    return recommendations
+        recommendations.sort(key=lambda x: x['score'], reverse=True)
+        return recommendations
 
 
 # ========================================
