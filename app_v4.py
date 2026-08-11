@@ -578,57 +578,144 @@ def page_chefs():
     chefs = dm.get_chefs()
     projets = dm.get_projets()
     
-    # Calculer métriques réelles pour chaque chef
-    chefs_display = chefs.copy()
+    # ========================================
+    # CREATION D'UN NOUVEAU CHEF
+    # ========================================
+    with st.expander("➕ Créer un nouveau chef de projet"):
+        with st.form("form_nouveau_chef"):
+            col1, col2 = st.columns(2)
+            with col1:
+                nom = st.text_input("Nom et prénom *")
+                email = st.text_input("Email")
+                experience = st.number_input("Années d'expérience", min_value=0, max_value=50, value=1)
+                capacite = st.number_input("Capacité max (ICC, 0-100)", min_value=0, max_value=100, value=50)
+            with col2:
+                tech = st.selectbox("Compétences techniques", ["2=Basique", "3=Moyen", "4=Bon", "5=Excellent"])
+                mgmt = st.selectbox("Compétences management", ["2=Débutant", "3=Moyen", "4=Bon", "5=Excellent"])
+                ia = st.selectbox("Utilisation IA", ["1=Aucune", "2=Occasionnelle", "3=Régulière", "4=Quotidienne", "5=Avancée"])
+                secteurs = st.text_input("Secteurs d'expertise")
+            
+            commentaires = st.text_area("Commentaires")
+            submitted = st.form_submit_button("Créer le chef", type="primary")
+            
+            if submitted:
+                if not nom:
+                    st.error("Le nom est obligatoire")
+                else:
+                    data = {
+                        'Nom_Prenom': nom, 'Email': email,
+                        'Annees_Experience': experience, 'Competences_Tech': tech,
+                        'Competences_Mgmt': mgmt, 'Utilisation_IA': ia,
+                        'Capacite_Max': capacite, 'Secteurs_Expertise': secteurs,
+                        'Commentaires': commentaires, 'Statut': 'Disponible'
+                    }
+                    succes, resultat = dm.creer_chef(data)
+                    if succes:
+                        st.success(f"✅ Chef {resultat} créé avec succès !")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Erreur : {resultat}")
     
+    st.markdown("---")
+    
+    # ========================================
+    # CALCUL METRIQUES REELLES (inchangé)
+    # ========================================
+    chefs_display = chefs.copy()
     for idx, chef in chefs_display.iterrows():
         chef_id = chef['ID_Chef']
-        
-        # Compter projets actifs réels
         nb_projets = len(projets[
-            (projets['Chef_Affecte'] == chef_id) & 
-            (projets['Statut'] == 'Actif')
+            (projets['Chef_Affecte'] == chef_id) & (projets['Statut'] == 'Actif')
         ])
-        
-        # Calculer charge réelle
         charge_icm = projets[
-            (projets['Chef_Affecte'] == chef_id) & 
-            (projets['Statut'] == 'Actif')
+            (projets['Chef_Affecte'] == chef_id) & (projets['Statut'] == 'Actif')
         ]['Indice_Charge'].sum()
-        
-        # Calculer taux réel
         icc = chef['Capacite_Max']
         taux_reel = (charge_icm / icc * 100) if icc > 0 else 0
-        
-        # Mettre à jour
         chefs_display.at[idx, 'Nb_Projets_Actifs'] = nb_projets
         chefs_display.at[idx, 'Charge_Actuelle'] = charge_icm
         chefs_display.at[idx, 'Taux_Charge_Pct'] = taux_reel
     
-    # Réorganiser colonnes
-    colonnes_affichees = ['ID_Chef', 'Nom_Prenom', 'Capacite_Max', 'ICC_H_Semaine',
+    # ========================================
+    # TABLEAU RECAPITULATIF
+    # ========================================
+    colonnes_affichees = ['ID_Chef', 'Nom_Prenom', 'Statut', 'Capacite_Max', 'ICC_H_Semaine',
                           'Charge_Actuelle', 'Taux_Charge_Pct', 'Nb_Projets_Actifs']
-    
-    # Vérifier colonnes disponibles
     colonnes_disponibles = [col for col in colonnes_affichees if col in chefs_display.columns]
-    
     df_display = chefs_display[colonnes_disponibles].copy()
     
-    # Formater charge avec 1 décimale
     if 'Charge_Actuelle' in df_display.columns:
         df_display['Charge_Actuelle'] = df_display['Charge_Actuelle'].apply(lambda x: f"{x:.1f}")
-    
-    # Formater taux sans décimales avec %
     if 'Taux_Charge_Pct' in df_display.columns:
         df_display['Taux_Charge_Pct'] = df_display['Taux_Charge_Pct'].apply(lambda x: f"{x:.0f}%")
     
-    # Affichage tableau
-    st.dataframe(
-        df_display,
-        use_container_width=True,
-        hide_index=True
-    )
-
+    st.dataframe(df_display, use_container_width=True, hide_index=True)
+    
+    st.markdown("---")
+    
+    # ========================================
+    # ACTIONS PAR CHEF (Modifier / Rendre indisponible)
+    # ========================================
+    st.subheader("Actions")
+    
+    for idx, chef in chefs_display.iterrows():
+        chef_id = chef['ID_Chef']
+        col1, col2, col3 = st.columns([3, 1.5, 2])
+        
+        with col1:
+            st.write(f"**{chef['Nom_Prenom']}** ({chef_id}) — {chef.get('Statut','-')}")
+        
+        with col2:
+            if st.button("✏️ Modifier", key=f"edit_chef_{chef_id}"):
+                st.session_state[f"editing_chef_{chef_id}"] = not st.session_state.get(f"editing_chef_{chef_id}", False)
+        
+        with col3:
+            if chef.get('Statut') == 'Indisponible':
+                st.caption("⛔ Déjà indisponible")
+            else:
+                autorise, message = dm.peut_devenir_indisponible(chef_id, projets)
+                if st.button("⛔ Rendre indisponible", key=f"indispo_{chef_id}", disabled=not autorise):
+                    succes, msg = dm.rendre_indisponible_chef(chef_id, projets)
+                    if succes:
+                        st.success(msg)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+                if not autorise:
+                    st.caption(f"ℹ️ {message}")
+        
+        if st.session_state.get(f"editing_chef_{chef_id}", False):
+            with st.form(f"form_edit_chef_{chef_id}"):
+                st.write(f"**Modifier {chef['Nom_Prenom']}**")
+                nom_e = st.text_input("Nom et prénom", value=chef.get('Nom_Prenom', ''))
+                email_e = st.text_input("Email", value=chef.get('Email', ''))
+                exp_e = st.number_input("Années d'expérience", value=int(chef.get('Annees_Experience', 0) or 0))
+                capa_e = st.number_input("Capacité max", value=int(chef.get('Capacite_Max', 50) or 50))
+                statuts_possibles = ["Disponible", "Occupé", "Indisponible"]
+                statut_actuel = chef.get('Statut', 'Disponible')
+                idx_statut = statuts_possibles.index(statut_actuel) if statut_actuel in statuts_possibles else 0
+                statut_e = st.selectbox("Statut", statuts_possibles, index=idx_statut)
+                
+                col_s, col_c = st.columns(2)
+                with col_s:
+                    save = st.form_submit_button("💾 Enregistrer", type="primary")
+                with col_c:
+                    cancel = st.form_submit_button("Annuler")
+                
+                if save:
+                    data = {'Nom_Prenom': nom_e, 'Email': email_e, 'Annees_Experience': exp_e,
+                            'Capacite_Max': capa_e, 'Statut': statut_e}
+                    if dm.modifier_chef(chef_id, data):
+                        st.success("✅ Modifié")
+                        st.session_state[f"editing_chef_{chef_id}"] = False
+                        st.rerun()
+                    else:
+                        st.error("❌ Erreur lors de la modification")
+                if cancel:
+                    st.session_state[f"editing_chef_{chef_id}"] = False
+                    st.rerun()
+        
+        st.markdown("---")
 
 # ========================================
 # MENU PRINCIPAL
