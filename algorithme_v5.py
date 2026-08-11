@@ -422,6 +422,9 @@ class AlgorithmeAffectationV5:
         icm_projet = projet['Indice_Charge']
         
         for _, chef in chefs_df.iterrows():
+            # Exclure les chefs indisponibles des recommandations
+            if chef.get('Statut') == 'Indisponible':
+                continue
             util = self.calculer_taux_utilisation(
                 chef['ID_Chef'], projets_df, chefs_df
             )
