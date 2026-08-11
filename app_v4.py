@@ -59,6 +59,24 @@ st.markdown("""
 # ========================================
 
 # Pas de cache pour permettre les mises à jour
+# (cache_resource ci-dessous : uniquement la connexion, pas les données)
+@st.cache_resource
+def get_data_manager():
+    """Initialise le DataManager (mis en cache : une seule connexion réutilisée)."""
+    if 'gcp_service_account' in st.secrets:
+        import json
+        credentials_dict = dict(st.secrets["gcp_service_account"])
+        with open('/tmp/credentials.json', 'w') as f:
+            json.dump(credentials_dict, f)
+        credentials_file = '/tmp/credentials.json'
+    else:
+        credentials_file = '/Users/mac/Documents/DSMIA_PFE/PMO_Orchestre/credentials.json'
+    
+    return init_data_manager(
+        credentials_file=credentials_file,
+        sheet_id='1TFCyjjWZirBQG45xXnJ8vzHMo5YrhkiIwHdHaMx7lfs'
+    )
+    
 def get_data_manager():
     """Initialise le DataManager (sans cache pour permettre affectations)."""
     # Charger credentials depuis Streamlit Cloud ou local
