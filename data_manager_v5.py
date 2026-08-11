@@ -302,7 +302,90 @@ class DataManagerV5:
         """
         df = self.get_chefs()
         return df[df['Taux_Charge_Pct'] < seuil_pct]
+
+    def generer_prochain_id_chef(self) -> str:
+        """Génère le prochain ID chef disponible (CP-XXX)."""
+        df = self.get_chefs()
+        nums = []
+        if 'ID_Chef' in df.columns:
+            for id_chef in df['ID_Chef']:
+                try:
+                    nums.append(int(str(id_chef).split('-')[1]))
+                except (IndexError, ValueError):
+                    continue
+        prochain = max(nums) + 1 if nums else 1
+        return f'CP-{prochain:03d}'
     
+    def creer_chef(self, data: Dict) -> Tuple[bool, str]:
+        """
+        Crée un nouveau chef de projet (ID généré automatiquement).
+        
+        Returns:
+            (succès, ID créé ou message d'erreur)
+        """
+        try:
+            ws = self.spreadsheet.worksheet('Chefs_Projets')
+            headers = ws.row_values(1)
+            
+            nouvel_id = self.generer_prochain_id_chef()
+            data = dict(data)
+            data['ID_Chef'] = nouvel_id
+            data.setdefault('Statut', 'Disponible')
+            
+            ligne = [data.get(h, '') for h in headers]
+            ws.append_row(ligne)
+            
+            print(f"✅ Chef {nouvel_id} créé")
+            return True, nouvel_id
+        except Exception as e:
+            print(f"❌ Erreur création chef : {str(e)}")
+            return False, str(e)
+    
+    def modifier_chef(self, chef_id: str, data: Dict) -> bool:
+        """Modifie les champs d'un chef existant (hors ID_Chef, non modifiable)."""
+        try:
+            ws = self.spreadsheet.worksheet('Chefs_Projets')
+            cell = ws.find(chef_id)
+            if cell is None:
+                print(f"❌ Chef {chef_id} introuvable")
+                return False
+            
+            row = cell.row
+            headers = ws.row_values(1)
+            
+            for champ, valeur in data.items():
+                if champ == 'ID_Chef':
+                    continue
+                if champ in headers:
+                    col = headers.index(champ) + 1
+                    ws.update_cell(row, col, valeur)
+            
+            print(f"✅ Chef {chef_id} modifié")
+            return True
+        except Exception as e:
+            print(f"❌ Erreur modification chef : {str(e)}")
+            return False
+    
+    def peut_devenir_indisponible(self, chef_id: str, projets_df: pd.DataFrame) -> Tuple[bool, str]:
+        """
+        Vérifie si un chef peut passer au statut 'Indisponible'.
+        Condition : aucun projet au statut 'Actif' affecté à ce chef.
+        """
+        projets_chef = projets_df[projets_df['Chef_Affecte'] == chef_id]
+        projets_actifs = projets_chef[projets_chef['Statut'] == 'Actif']
+        
+        if len(projets_actifs) > 0:
+            noms = ', '.join(projets_actifs['Nom_Projet'].tolist())
+            return False, f"Impossible : {len(projets_actifs)} projet(s) actif(s) en cours ({noms}). Clôturez ou désaffectez-les d'abord."
+        return True, "OK"
+    
+    def rendre_indisponible_chef(self, chef_id: str, projets_df: pd.DataFrame) -> Tuple[bool, str]:
+        """Passe un chef en 'Indisponible', après vérification de la contrainte."""
+        autorise, message = self.peut_devenir_indisponible(chef_id, projets_df)
+        if not autorise:
+            return False, message
+        succes = self.modifier_chef(chef_id, {'Statut': 'Indisponible'})
+        return succes, "Chef marqué indisponible" if succes else "Erreur lors de la mise à jour"
     # ========================================
     # GESTION DES PONDÉRATIONS
     # ========================================
