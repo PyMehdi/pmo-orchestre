@@ -510,14 +510,18 @@ def page_affectation():
 # ========================================
 # PAGE : PROJETS
 # ========================================
-
+        
 def page_projets():
     """Page liste des projets."""
     st.title("📁 Gestion des Projets")
     
     dm = get_data_manager()
     projets = dm.get_projets()
-    chefs = dm.get_chefs()  # Charger les chefs pour afficher noms
+    chefs = dm.get_chefs()
+    
+    if len(projets) == 0:
+        st.warning("⚠️ Impossible de charger les projets pour le moment (quota Google Sheets probablement dépassé). Réessayez dans une minute.")
+        return
     
     # Filtres
     col1, col2 = st.columns(2)
@@ -553,9 +557,11 @@ def page_projets():
     # Créer copie pour affichage avec nom client
     df_display = df_filtre[colonnes_disponibles].copy()
     
-    # Ajouter colonne Nom_Client
+    # Ajouter colonne Nom_Client (une seule lecture de la feuille Clients, pas une par ligne)
+    clients_df = dm.get_clients()
+    map_clients = dict(zip(clients_df['ID_Client'], clients_df['Nom_Client'])) if len(clients_df) > 0 else {}
     df_display.insert(2, 'Nom_Client', df_filtre['ID_Client'].apply(
-        lambda x: dm.get_client_by_id(x).get('Nom_Client', x) if dm.get_client_by_id(x) else x
+        lambda x: map_clients.get(x, x)
     ))
     
     # Remplacer Chef_Affecte (ID) par Nom du chef
