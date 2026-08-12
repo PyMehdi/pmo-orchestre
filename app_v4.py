@@ -977,6 +977,8 @@ def page_planification():
         with st.spinner("Calcul en cours..."):
             planning_df = dm.generer_planification_hebdo(nb_semaines=nb_semaines)
             st.session_state['planning_genere'] = planning_df
+            if len(planning_df) == 0:
+                st.warning("⚠️ Aucune ligne générée. Cause probable : aucun projet « Actif » avec Chef affecté n'a de période (Date_Debut → Date_Fin_Prev) recoupant les prochaines semaines. Vérifiez les dates dans Google Sheets.")
     
     if 'planning_genere' in st.session_state and len(st.session_state['planning_genere']) > 0:
         planning_df = st.session_state['planning_genere']
