@@ -601,7 +601,80 @@ class DataManagerV5:
         except Exception as e:
             print(f"❌ Erreur sauvegarde planification : {str(e)}")
             return False
+
+    # ========================================
+    # CRUD PROJETS (création, modification, clôture, désaffectation)
+    # ========================================
     
+    def generer_prochain_id_projet(self) -> str:
+        """Génère le prochain ID projet disponible (PROJ-XXX)."""
+        df = self.get_projets()
+        nums = []
+        if 'ID_Projet' in df.columns:
+            for id_p in df['ID_Projet']:
+                try:
+                    nums.append(int(str(id_p).split('-')[1]))
+                except (IndexError, ValueError):
+                    continue
+        prochain = max(nums) + 1 if nums else 1
+        return f'PROJ-{prochain:03d}'
+    
+    def creer_projet(self, data: Dict) -> Tuple[bool, str]:
+        """Crée un nouveau projet (ID généré automatiquement, Statut='En attente')."""
+        try:
+            ws = self.spreadsheet.worksheet('Projets')
+            headers = ws.row_values(1)
+            
+            nouvel_id = self.generer_prochain_id_projet()
+            data = dict(data)
+            data['ID_Projet'] = nouvel_id
+            data.setdefault('Statut', 'En attente')
+            data.setdefault('Chef_Affecte', '')
+            
+            ligne = [data.get(h, '') for h in headers]
+            ws.append_row(ligne)
+            
+            print(f"✅ Projet {nouvel_id} créé")
+            return True, nouvel_id
+        except Exception as e:
+            print(f"❌ Erreur création projet : {str(e)}")
+            return False, str(e)
+    
+    def modifier_projet(self, projet_id: str, data: Dict) -> bool:
+        """Modifie les champs d'un projet existant (hors ID_Projet, non modifiable)."""
+        try:
+            ws = self.spreadsheet.worksheet('Projets')
+            cell = ws.find(projet_id)
+            if cell is None:
+                print(f"❌ Projet {projet_id} introuvable")
+                return False
+            
+            row = cell.row
+            headers = ws.row_values(1)
+            
+            for champ, valeur in data.items():
+                if champ == 'ID_Projet':
+                    continue
+                if champ in headers:
+                    col = headers.index(champ) + 1
+                    ws.update_cell(row, col, valeur)
+            
+            print(f"✅ Projet {projet_id} modifié")
+            return True
+        except Exception as e:
+            print(f"❌ Erreur modification projet : {str(e)}")
+            return False
+    
+    def cloturer_projet(self, projet_id: str) -> bool:
+        """Clôture un projet — libère automatiquement la capacité du chef affecté
+        (le calcul de charge ne compte que les projets au statut 'Actif')."""
+        return self.modifier_projet(projet_id, {'Statut': 'Clôturé'})
+    
+    def desaffecter_projet(self, projet_id: str) -> bool:
+        """Désaffecte un projet : retire le chef, repasse en 'En attente',
+        libère automatiquement la capacité du chef."""
+        return self.modifier_projet(projet_id, {'Chef_Affecte': '', 'Statut': 'En attente'})
+        
     # ========================================
     # UTILITAIRES
     # ========================================
