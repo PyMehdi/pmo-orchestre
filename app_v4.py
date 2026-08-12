@@ -523,71 +523,187 @@ def page_projets():
         st.warning("⚠️ Impossible de charger les projets pour le moment (quota Google Sheets probablement dépassé). Réessayez dans une minute.")
         return
     
-    # Filtres
-    col1, col2 = st.columns(2)
+    # ========================================
+    # CREATION D'UN NOUVEAU PROJET
+    # ========================================
+    with st.expander("➕ Créer un nouveau projet"):
+        clients_df = dm.get_clients()
+        clients_options = clients_df['ID_Client'].tolist() if len(clients_df) > 0 else []
+        
+        with st.form("form_nouveau_projet"):
+            col1, col2 = st.columns(2)
+            with col1:
+                nom_projet = st.text_input("Nom du projet *")
+                id_client = st.selectbox("Client *", clients_options)
+                budget = st.number_input("Budget (MAD)", min_value=0, value=100000, step=10000)
+                charge_jh = st.number_input("Charge (jours/homme)", min_value=0, value=50)
+                nb_interv = st.number_input("Nombre d'intervenants", min_value=1, value=5)
+            with col2:
+                complexite = st.selectbox("Complexité technique", ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"])
+                risque = st.selectbox("Niveau de risque", ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"])
+                engagement = st.selectbox("Engagement client", ["2=Minimal", "3=Modéré", "4=Impliqué", "5=Très impliqué"])
+                freq = st.selectbox("Fréquence instances", ["1=Mensuelle", "2=Bi-mensuelle", "3=Hebdo", "4=Bi-hebdo"])
+                dispersion = st.selectbox("Dispersion géographique", ["1=1 site", "2=2 sites", "3=National", "4=International"])
+            
+            date_debut = st.date_input("Date de début")
+            duree = st.number_input("Durée (semaines)", min_value=1, value=12)
+            commentaires = st.text_area("Commentaires")
+            
+            submitted = st.form_submit_button("Créer le projet", type="primary")
+            
+            if submitted:
+                if not nom_projet or not id_client:
+                    st.error("Le nom du projet et le client sont obligatoires")
+                else:
+                    ponderations = dm.get_ponderations()
+                    algo = AlgorithmeAffectationV5(ponderations)
+                    
+                    criteres_icm = {
+                        'Charge_JH': charge_jh, 'Complexite_Tech': complexite,
+                        'Budget_MAD': budget, 'Niveau_Risque': risque,
+                        'Nb_Intervenants': nb_interv, 'Engagement_Client': engagement,
+                        'Freq_Instances': freq, 'Dispersion_Geo': dispersion
+                    }
+                    icm_calcule = algo.calculer_icm(criteres_icm)
+                    
+                    data = {
+                        'Nom_Projet': nom_projet, 'ID_Client': id_client,
+                        'Budget_MAD': budget, 'Charge_JH': charge_jh,
+                        'Complexite_Tech': complexite, 'Niveau_Risque': risque,
+                        'Nb_Intervenants': nb_interv, 'Engagement_Client': engagement,
+                        'Freq_Instances': freq, 'Dispersion_Geo': dispersion,
+                        'Indice_Charge': icm_calcule,
+                        'ICM_H_Semaine': round(icm_to_heures_semaine(icm_calcule), 1),
+                        'Date_Debut': str(date_debut), 'Duree_Semaines': duree,
+                        'Commentaires': commentaires
+                    }
+                    succes, resultat = dm.creer_projet(data)
+                    if succes:
+                        st.success(f"✅ Projet {resultat} créé (ICM calculé = {icm_calcule}/100) !")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Erreur : {resultat}")
     
+    st.markdown("---")
+    
+    # ========================================
+    # FILTRES (inchangé)
+    # ========================================
+    col1, col2 = st.columns(2)
     with col1:
         statut_filtre = st.multiselect(
-            "Statut",
-            options=projets['Statut'].unique().tolist(),
-            default=['Actif']
+            "Statut", options=projets['Statut'].unique().tolist(), default=['Actif']
         )
-    
     with col2:
         chef_filtre = st.multiselect(
-            "Chef affecté",
-            options=projets['Chef_Affecte'].unique().tolist()
+            "Chef affecté", options=projets['Chef_Affecte'].unique().tolist()
         )
     
-    # Appliquer filtres
     df_filtre = projets.copy()
     if statut_filtre:
         df_filtre = df_filtre[df_filtre['Statut'].isin(statut_filtre)]
     if chef_filtre:
         df_filtre = df_filtre[df_filtre['Chef_Affecte'].isin(chef_filtre)]
     
-    # Affichage tableau
     colonnes_affichees = ['ID_Projet', 'Nom_Projet', 'Statut', 'Indice_Charge', 
                           'ICM_H_Semaine', 'Chef_Affecte', 'Date_Debut', 
                           'Date_Fin_Prev', 'CPI', 'SPI', 'KPI Facturation']
-    
-    # Vérifier quelles colonnes existent
     colonnes_disponibles = [col for col in colonnes_affichees if col in df_filtre.columns]
-    
-    # Créer copie pour affichage avec nom client
     df_display = df_filtre[colonnes_disponibles].copy()
     
-    # Ajouter colonne Nom_Client (une seule lecture de la feuille Clients, pas une par ligne)
     clients_df = dm.get_clients()
     map_clients = dict(zip(clients_df['ID_Client'], clients_df['Nom_Client'])) if len(clients_df) > 0 else {}
-    df_display.insert(2, 'Nom_Client', df_filtre['ID_Client'].apply(
-        lambda x: map_clients.get(x, x)
-    ))
+    df_display.insert(2, 'Nom_Client', df_filtre['ID_Client'].apply(lambda x: map_clients.get(x, x)))
     
-    # Remplacer Chef_Affecte (ID) par Nom du chef
     if 'Chef_Affecte' in df_display.columns:
         df_display['Nom_Chef'] = df_display['Chef_Affecte'].apply(
             lambda x: chefs[chefs['ID_Chef'] == x]['Nom_Prenom'].iloc[0] if len(chefs[chefs['ID_Chef'] == x]) > 0 else x
         )
-        # Insérer après Chef_Affecte
         idx = list(df_display.columns).index('Chef_Affecte')
         cols = list(df_display.columns)
         cols.remove('Nom_Chef')
         cols.insert(idx + 1, 'Nom_Chef')
         df_display = df_display[cols]
     
-    # Formater dates sans heure
     for col in ['Date_Debut', 'Date_Fin_Prev']:
         if col in df_display.columns:
             df_display[col] = pd.to_datetime(df_display[col], errors='coerce').dt.strftime('%Y-%m-%d')
     
-    st.dataframe(
-        df_display,
-        use_container_width=True,
-        hide_index=True
-    )
-    
+    st.dataframe(df_display, use_container_width=True, hide_index=True)
     st.caption(f"**{len(df_filtre)}** projet(s) affiché(s)")
+    
+    st.markdown("---")
+    
+    # ========================================
+    # ACTIONS PAR PROJET (Modifier / Clôturer / Désaffecter)
+    # ========================================
+    st.subheader("Actions")
+    
+    for idx, projet in df_filtre.iterrows():
+        projet_id = projet['ID_Projet']
+        col1, col2, col3, col4 = st.columns([3, 1.3, 1.3, 1.3])
+        
+        with col1:
+            st.write(f"**{projet['Nom_Projet']}** ({projet_id}) — {projet.get('Statut','-')}")
+        
+        with col2:
+            if st.button("✏️ Modifier", key=f"edit_proj_{projet_id}"):
+                st.session_state[f"editing_proj_{projet_id}"] = not st.session_state.get(f"editing_proj_{projet_id}", False)
+        
+        with col3:
+            if projet.get('Statut') == 'Clôturé':
+                st.caption("🔒 Déjà clôturé")
+            else:
+                if st.button("🔒 Clôturer", key=f"cloture_{projet_id}"):
+                    if dm.cloturer_projet(projet_id):
+                        st.success("Projet clôturé")
+                        st.rerun()
+                    else:
+                        st.error("Erreur lors de la clôture")
+        
+        with col4:
+            chef_actuel = projet.get('Chef_Affecte', '')
+            if not chef_actuel or projet.get('Statut') != 'Actif':
+                st.caption("— pas de chef à retirer")
+            else:
+                if st.button("🔓 Désaffecter", key=f"desaffect_{projet_id}"):
+                    if dm.desaffecter_projet(projet_id):
+                        st.success("Projet désaffecté, capacité du chef libérée")
+                        st.rerun()
+                    else:
+                        st.error("Erreur lors de la désaffectation")
+        
+        if st.session_state.get(f"editing_proj_{projet_id}", False):
+            with st.form(f"form_edit_proj_{projet_id}"):
+                st.write(f"**Modifier {projet['Nom_Projet']}**")
+                nom_e = st.text_input("Nom du projet", value=projet.get('Nom_Projet', ''))
+                budget_e = st.number_input("Budget (MAD)", value=int(projet.get('Budget_MAD', 0) or 0))
+                charge_e = st.number_input("Charge (j/h)", value=int(projet.get('Charge_JH', 0) or 0))
+                statuts_possibles = ["En attente", "Actif", "Clôturé"]
+                statut_actuel = projet.get('Statut', 'En attente')
+                idx_statut = statuts_possibles.index(statut_actuel) if statut_actuel in statuts_possibles else 0
+                statut_e = st.selectbox("Statut", statuts_possibles, index=idx_statut)
+                
+                col_s, col_c = st.columns(2)
+                with col_s:
+                    save = st.form_submit_button("💾 Enregistrer", type="primary")
+                with col_c:
+                    cancel = st.form_submit_button("Annuler")
+                
+                if save:
+                    data = {'Nom_Projet': nom_e, 'Budget_MAD': budget_e,
+                            'Charge_JH': charge_e, 'Statut': statut_e}
+                    if dm.modifier_projet(projet_id, data):
+                        st.success("✅ Modifié")
+                        st.session_state[f"editing_proj_{projet_id}"] = False
+                        st.rerun()
+                    else:
+                        st.error("❌ Erreur lors de la modification")
+                if cancel:
+                    st.session_state[f"editing_proj_{projet_id}"] = False
+                    st.rerun()
+        
+        st.markdown("---")
 
 
 # ========================================
