@@ -209,6 +209,7 @@ def page_dashboard():
             nb_surcharges,
             delta="⚠️ À surveiller" if nb_surcharges > 0 else "OK"
         )
+
     
     st.markdown("---")
     
@@ -284,6 +285,33 @@ def page_dashboard():
                     client = dm.get_client_by_id(client_id)
                     client_nom = client.get('Nom_Client', client_id) if client else client_id
                     st.write(f"• **{p['ID_Projet']}** - {client_nom} - {p['Nom_Projet']} : {p['Indice_Charge']:.0f} pts ({icm_h:.1f}h/sem)")
+    
+    st.markdown("---")
+    st.subheader("📐 Santé du portefeuille (projets actifs)")
+    
+    projets_actifs = projets[projets['Statut'] == 'Actif'].copy()
+    for col in ['CPI', 'SPI']:
+        if col in projets_actifs.columns:
+            projets_actifs[col] = pd.to_numeric(projets_actifs[col], errors='coerce')
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        cpi_moy = projets_actifs['CPI'].mean() if 'CPI' in projets_actifs.columns else None
+        st.metric("CPI moyen", f"{cpi_moy:.2f}" if pd.notna(cpi_moy) else "N/A",
+                   delta="Sous budget" if cpi_moy and cpi_moy >= 1 else "En dérive budget" if cpi_moy else None)
+    
+    with col2:
+        spi_moy = projets_actifs['SPI'].mean() if 'SPI' in projets_actifs.columns else None
+        st.metric("SPI moyen", f"{spi_moy:.2f}" if pd.notna(spi_moy) else "N/A",
+                   delta="Dans les temps" if spi_moy and spi_moy >= 1 else "En retard" if spi_moy else None)
+    
+    with col3:
+        nb_derive = 0
+        if 'CPI' in projets_actifs.columns and 'SPI' in projets_actifs.columns:
+            nb_derive = len(projets_actifs[(projets_actifs['CPI'] < 1) | (projets_actifs['SPI'] < 1)])
+        st.metric("Projets en dérive", nb_derive,
+                   delta="⚠️ À surveiller" if nb_derive > 0 else "OK")
 
 
 # ========================================
@@ -931,11 +959,78 @@ def page_chefs():
                     st.rerun()
         
         st.markdown("---")
+        
+# ========================================
+# PAGE : PLANIFICATION
+# ========================================
+def page_planification():
+    """Page de prévision de charge sur les prochaines semaines."""
+    st.title("📅 Planification Hebdomadaire")
+    
+    dm = get_data_manager()
+    
+    st.markdown("Génère une projection de la charge de chaque chef sur les semaines à venir, à partir des projets actifs et planifiés.")
+    
+    nb_semaines = st.slider("Nombre de semaines à projeter", min_value=4, max_value=26, value=12)
+    
+    if st.button("🔄 Générer la prévision", type="primary"):
+        with st.spinner("Calcul en cours..."):
+            planning_df = dm.generer_planification_hebdo(nb_semaines=nb_semaines)
+            st.session_state['planning_genere'] = planning_df
+    
+    if 'planning_genere' in st.session_state and len(st.session_state['planning_genere']) > 0:
+        planning_df = st.session_state['planning_genere']
+        
+        st.markdown("---")
+        st.subheader("Vue par chef / semaine (heures prévues)")
+        
+        pivot = planning_df.pivot_table(
+            index='Chef_ID', columns='Semaine', values='Charge_H', aggfunc='sum', fill_value=0
+        )
+        st.dataframe(pivot.style.format("{:.1f}"), use_container_width=True)
+        
+        st.subheader("Détail des lignes générées")
+        st.dataframe(planning_df, use_container_width=True, hide_index=True)
+        st.caption(f"{len(planning_df)} lignes générées sur {nb_semaines} semaines")
+        
+        if st.button("💾 Enregistrer cette prévision dans Google Sheets"):
+            if dm.sauvegarder_planification_hebdo(planning_df):
+                st.success("✅ Prévision enregistrée dans la feuille Planification_Hebdo")
+            else:
+                st.error("❌ Erreur lors de l'enregistrement")
+    
+    st.markdown("---")
+    st.subheader("Dernière prévision enregistrée")
+    planning_existant = dm.get_planification_hebdo()
+    if len(planning_existant) > 0:
+        st.dataframe(planning_existant, use_container_width=True, hide_index=True)
+    else:
+        st.info("Aucune prévision enregistrée pour le moment.")
 
 # ========================================
 # MENU PRINCIPAL
 # ========================================
+def check_password():
+    """Affiche un champ mot de passe ; retourne True si correct."""
+    def password_entered():
+        if st.session_state["password"] == st.secrets.get("app_password", ""):
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
 
+    if "password_correct" not in st.session_state:
+        st.title("🎯 PMO Orchestre")
+        st.text_input("🔒 Mot de passe", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        st.title("🎯 PMO Orchestre")
+        st.text_input("🔒 Mot de passe", type="password", on_change=password_entered, key="password")
+        st.error("😕 Mot de passe incorrect")
+        return False
+    else:
+        return True
+        
 def main():
     """Fonction principale de l'application."""
     
@@ -948,7 +1043,7 @@ def main():
         
         page = st.radio(
             "Navigation",
-            ["Dashboard", "Affectation", "Projets", "Chefs de projet"],
+            ["Dashboard", "Affectation", "Projets", "Chefs de projet", "Planification"],
             key='page_selector'
         )
         
@@ -970,7 +1065,10 @@ def main():
         page_projets()
     elif page == "Chefs de projet":
         page_chefs()
+    elif page == "Planification":
+        page_planification()
 
 
 if __name__ == "__main__":
-    main()
+    if check_password():
+        main()
