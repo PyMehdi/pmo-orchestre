@@ -213,7 +213,7 @@ def page_dashboard():
     st.markdown("---")
     
     # Vue d'ensemble des chefs (avec colonne Capacité Max ajoutée)
-    st.subheader("🧮 Vue d'ensemble des chefs")
+    st.subheader("👷 Vue d'ensemble des chefs de projet")
     
     chefs_summary = chefs.copy()
     for idx, chef in chefs_summary.iterrows():
@@ -618,7 +618,14 @@ def page_projets():
     for col in ['Date_Debut', 'Date_Fin_Prev']:
         if col in df_display.columns:
             df_display[col] = pd.to_datetime(df_display[col], errors='coerce').dt.strftime('%Y-%m-%d')
-    
+
+    colonnes_numeriques = ['Indice_Charge', 'ICM_H_Semaine', 'CPI', 'SPI', 'KPI Facturation']
+    for col in colonnes_numeriques:
+        if col in df_display.columns:
+            df_display[col] = pd.to_numeric(df_display[col], errors='coerce').apply(
+                lambda x: f"{x:.1f}" if pd.notna(x) else ''
+            )
+            
     styler = df_display.style.applymap(color_statut, subset=['Statut']).hide(axis='index')
     st.dataframe(styler, use_container_width=True)
     st.caption(f"**{len(df_filtre)}** projet(s) affiché(s)")
@@ -828,16 +835,25 @@ def page_chefs():
     # ========================================
     # TABLEAU RECAPITULATIF
     # ========================================
-    colonnes_affichees = ['ID_Chef', 'Nom_Prenom', 'Statut', 'Capacite_Max', 'ICC_H_Semaine',
+    colonnes_affichees = ['ID_Chef', 'Nom_Prenom', 'Capacite_Max', 'ICC_H_Semaine',
                           'Charge_Actuelle', 'Taux_Charge_Pct', 'Nb_Projets_Actifs']
     colonnes_disponibles = [col for col in colonnes_affichees if col in chefs_display.columns]
     df_display = chefs_display[colonnes_disponibles].copy()
     
-    if 'Charge_Actuelle' in df_display.columns:
-        df_display['Charge_Actuelle'] = df_display['Charge_Actuelle'].apply(lambda x: f"{x:.1f}")
-    if 'Taux_Charge_Pct' in df_display.columns:
-        df_display['Taux_Charge_Pct'] = df_display['Taux_Charge_Pct'].apply(lambda x: f"{x:.0f}%")
+    for col in ['Capacite_Max', 'ICC_H_Semaine', 'Charge_Actuelle']:
+        if col in df_display.columns:
+            df_display[col] = pd.to_numeric(df_display[col], errors='coerce').apply(
+                lambda x: f"{x:.1f}" if pd.notna(x) else ''
+            )
     
+    if 'Taux_Charge_Pct' in df_display.columns:
+        df_display['Taux_Charge_Pct'] = pd.to_numeric(df_display['Taux_Charge_Pct'], errors='coerce').apply(
+            lambda x: f"{x:.1f}%" if pd.notna(x) else ''
+        )
+    
+    if 'Nb_Projets_Actifs' in df_display.columns:
+        df_display['Nb_Projets_Actifs'] = pd.to_numeric(df_display['Nb_Projets_Actifs'], errors='coerce').fillna(0).astype(int)
+        
     def highlight_surcharge(row):
         try:
             taux_num = float(str(row['Taux_Charge_Pct']).replace('%', ''))
