@@ -968,6 +968,8 @@ def page_planification():
     st.title("📅 Planification Hebdomadaire")
     
     dm = get_data_manager()
+    chefs = dm.get_chefs()
+    map_chefs_nom = dict(zip(chefs['ID_Chef'], chefs['Nom_Prenom'])) if len(chefs) > 0 else {}
     
     st.markdown("Génère une projection de la charge de chaque chef sur les semaines à venir, à partir des projets actifs et planifiés.")
     
@@ -981,22 +983,48 @@ def page_planification():
                 st.warning("⚠️ Aucune ligne générée. Cause probable : aucun projet « Actif » avec Chef affecté n'a de période (Date_Debut → Date_Fin_Prev) recoupant les prochaines semaines. Vérifiez les dates dans Google Sheets.")
     
     if 'planning_genere' in st.session_state and len(st.session_state['planning_genere']) > 0:
-        planning_df = st.session_state['planning_genere']
+        planning_df = st.session_state['planning_genere'].copy()
+        
+        # Nom du chef au lieu de l'ID
+        planning_df['Nom_Chef'] = planning_df['Chef_ID'].apply(lambda x: map_chefs_nom.get(x, x))
+        
+        # Date du lundi (premier jour) de chaque semaine, à partir de la date générée
+        planning_df['Date'] = pd.to_datetime(planning_df['Date'], errors='coerce')
+        planning_df['Lundi_Semaine'] = planning_df['Date'] - pd.to_timedelta(planning_df['Date'].dt.weekday, unit='D')
         
         st.markdown("---")
         st.subheader("Vue par chef / semaine (heures prévues)")
         
+        # Construire les libellés de colonnes "Semaine X" + date du lundi (2 niveaux d'en-tête)
+        semaine_to_date = planning_df.groupby('Semaine')['Lundi_Semaine'].first().to_dict()
+        
         pivot = planning_df.pivot_table(
-            index='Chef_ID', columns='Semaine', values='Charge_H', aggfunc='sum', fill_value=0
+            index='Nom_Chef', columns='Semaine', values='Charge_H', aggfunc='sum', fill_value=0
         )
+        pivot = pivot.reindex(sorted(pivot.columns), axis=1)
+        
+        pivot.columns = pd.MultiIndex.from_tuples([
+            (f"S{s}", semaine_to_date[s].strftime('%d/%m/%Y') if pd.notna(semaine_to_date[s]) else '')
+            for s in pivot.columns
+        ])
+        
         st.dataframe(pivot.style.format("{:.1f}"), use_container_width=True)
         
+        st.markdown("---")
         st.subheader("Détail des lignes générées")
-        st.dataframe(planning_df, use_container_width=True, hide_index=True)
+        
+        detail_display = planning_df[['Semaine', 'Lundi_Semaine', 'Annee', 'Nom_Chef', 'Projet_ID', 'Projet_Nom', 'ICM', 'Charge_H']].copy()
+        detail_display['Lundi_Semaine'] = detail_display['Lundi_Semaine'].dt.strftime('%d/%m/%Y')
+        detail_display['Annee'] = detail_display['Annee'].astype(str)  # évite l'affichage "2,026"
+        detail_display['ICM'] = detail_display['ICM'].apply(lambda x: f"{x:.1f}")
+        detail_display['Charge_H'] = detail_display['Charge_H'].apply(lambda x: f"{x:.1f}")
+        detail_display = detail_display.rename(columns={'Lundi_Semaine': 'Date (lundi)'})
+        
+        st.dataframe(detail_display, use_container_width=True, hide_index=True)
         st.caption(f"{len(planning_df)} lignes générées sur {nb_semaines} semaines")
         
         if st.button("💾 Enregistrer cette prévision dans Google Sheets"):
-            if dm.sauvegarder_planification_hebdo(planning_df):
+            if dm.sauvegarder_planification_hebdo(st.session_state['planning_genere']):
                 st.success("✅ Prévision enregistrée dans la feuille Planification_Hebdo")
             else:
                 st.error("❌ Erreur lors de l'enregistrement")
@@ -1005,10 +1033,16 @@ def page_planification():
     st.subheader("Dernière prévision enregistrée")
     planning_existant = dm.get_planification_hebdo()
     if len(planning_existant) > 0:
-        st.dataframe(planning_existant, use_container_width=True, hide_index=True)
+        planning_existant = planning_existant.copy()
+        planning_existant['Nom_Chef'] = planning_existant['Chef_ID'].apply(lambda x: map_chefs_nom.get(x, x))
+        if 'Annee' in planning_existant.columns:
+            planning_existant['Annee'] = planning_existant['Annee'].astype(str)
+        colonnes_finales = ['Semaine', 'Annee', 'Nom_Chef', 'Projet_ID', 'Projet_Nom', 'ICM', 'Charge_H']
+        colonnes_dispo = [c for c in colonnes_finales if c in planning_existant.columns]
+        st.dataframe(planning_existant[colonnes_dispo], use_container_width=True, hide_index=True)
     else:
         st.info("Aucune prévision enregistrée pour le moment.")
-
+        
 # ========================================
 # MENU PRINCIPAL
 # ========================================
