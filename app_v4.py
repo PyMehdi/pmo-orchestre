@@ -489,6 +489,17 @@ def page_affectation():
 # PAGE : PROJETS
 # ========================================
         
+def color_statut(val):
+    """Couleur de fond selon le statut du projet."""
+    if val == 'Actif':
+        return 'background-color: #D5F5E3; color: #196F3D; font-weight: bold;'
+    elif val == 'En attente':
+        return 'background-color: #D6EAF8; color: #1B4F72; font-weight: bold;'
+    elif val == 'Clôturé':
+        return 'background-color: #EAECEE; color: #566573;'
+    return ''
+
+
 def page_projets():
     """Page liste des projets."""
     st.title("📁 Gestion des Projets")
@@ -565,23 +576,26 @@ def page_projets():
     st.markdown("---")
     
     # ========================================
-    # FILTRES (inchangé)
+    # FILTRES
     # ========================================
+    map_chefs_nom = dict(zip(chefs['ID_Chef'], chefs['Nom_Prenom'])) if len(chefs) > 0 else {}
+    
     col1, col2 = st.columns(2)
     with col1:
         statut_filtre = st.multiselect(
             "Statut", options=projets['Statut'].unique().tolist(), default=['Actif']
         )
     with col2:
-        chef_filtre = st.multiselect(
-            "Chef affecté", options=projets['Chef_Affecte'].unique().tolist()
-        )
+        chefs_avec_projets = [c for c in projets['Chef_Affecte'].unique().tolist() if c and c in map_chefs_nom]
+        noms_options = sorted([map_chefs_nom[c] for c in chefs_avec_projets])
+        noms_selectionnes = st.multiselect("Chef affecté", options=noms_options)
+        ids_selectionnes = [cid for cid, nom in map_chefs_nom.items() if nom in noms_selectionnes]
     
     df_filtre = projets.copy()
     if statut_filtre:
         df_filtre = df_filtre[df_filtre['Statut'].isin(statut_filtre)]
-    if chef_filtre:
-        df_filtre = df_filtre[df_filtre['Chef_Affecte'].isin(chef_filtre)]
+    if noms_selectionnes:
+        df_filtre = df_filtre[df_filtre['Chef_Affecte'].isin(ids_selectionnes)]
     
     colonnes_affichees = ['ID_Projet', 'Nom_Projet', 'Statut', 'Indice_Charge', 
                           'ICM_H_Semaine', 'Chef_Affecte', 'Date_Debut', 
@@ -594,9 +608,7 @@ def page_projets():
     df_display.insert(2, 'Nom_Client', df_filtre['ID_Client'].apply(lambda x: map_clients.get(x, x)))
     
     if 'Chef_Affecte' in df_display.columns:
-        df_display['Nom_Chef'] = df_display['Chef_Affecte'].apply(
-            lambda x: chefs[chefs['ID_Chef'] == x]['Nom_Prenom'].iloc[0] if len(chefs[chefs['ID_Chef'] == x]) > 0 else x
-        )
+        df_display['Nom_Chef'] = df_display['Chef_Affecte'].apply(lambda x: map_chefs_nom.get(x, x))
         idx = list(df_display.columns).index('Chef_Affecte')
         cols = list(df_display.columns)
         cols.remove('Nom_Chef')
@@ -607,15 +619,19 @@ def page_projets():
         if col in df_display.columns:
             df_display[col] = pd.to_datetime(df_display[col], errors='coerce').dt.strftime('%Y-%m-%d')
     
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
+    styler = df_display.style.applymap(color_statut, subset=['Statut']).hide(axis='index')
+    st.dataframe(styler, use_container_width=True)
     st.caption(f"**{len(df_filtre)}** projet(s) affiché(s)")
     
     st.markdown("---")
     
     # ========================================
-    # ACTIONS PAR PROJET (Modifier / Clôturer / Désaffecter)
+    # ACTIONS PAR PROJET
     # ========================================
     st.subheader("Actions")
+    
+    clients_options_edit = clients_df['ID_Client'].tolist() if len(clients_df) > 0 else []
+    chefs_options_edit = [''] + chefs['ID_Chef'].tolist() if len(chefs) > 0 else ['']
     
     for idx, projet in df_filtre.iterrows():
         projet_id = projet['ID_Projet']
@@ -651,16 +667,52 @@ def page_projets():
                     else:
                         st.error("Erreur lors de la désaffectation")
         
+        # ---- FORMULAIRE DE MODIFICATION COMPLET ----
         if st.session_state.get(f"editing_proj_{projet_id}", False):
             with st.form(f"form_edit_proj_{projet_id}"):
-                st.write(f"**Modifier {projet['Nom_Projet']}**")
-                nom_e = st.text_input("Nom du projet", value=projet.get('Nom_Projet', ''))
-                budget_e = st.number_input("Budget (MAD)", value=int(projet.get('Budget_MAD', 0) or 0))
-                charge_e = st.number_input("Charge (j/h)", value=int(projet.get('Charge_JH', 0) or 0))
-                statuts_possibles = ["En attente", "Actif", "Clôturé"]
-                statut_actuel = projet.get('Statut', 'En attente')
-                idx_statut = statuts_possibles.index(statut_actuel) if statut_actuel in statuts_possibles else 0
-                statut_e = st.selectbox("Statut", statuts_possibles, index=idx_statut)
+                st.write(f"**Modifier {projet['Nom_Projet']}** — tous les champs de la base")
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown("**Identification**")
+                    nom_e = st.text_input("Nom du projet", value=projet.get('Nom_Projet', ''))
+                    idx_client = clients_options_edit.index(projet.get('ID_Client')) if projet.get('ID_Client') in clients_options_edit else 0
+                    client_e = st.selectbox("Client", clients_options_edit, index=idx_client)
+                    statuts_possibles = ["En attente", "Actif", "Clôturé"]
+                    statut_actuel = projet.get('Statut', 'En attente')
+                    idx_statut = statuts_possibles.index(statut_actuel) if statut_actuel in statuts_possibles else 0
+                    statut_e = st.selectbox("Statut", statuts_possibles, index=idx_statut)
+                    idx_chef = chefs_options_edit.index(projet.get('Chef_Affecte')) if projet.get('Chef_Affecte') in chefs_options_edit else 0
+                    chef_e = st.selectbox("Chef affecté", chefs_options_edit, index=idx_chef,
+                                           format_func=lambda x: map_chefs_nom.get(x, "— Aucun —") if x else "— Aucun —")
+                    
+                    st.markdown("**Critères ICM**")
+                    budget_e = st.number_input("Budget (MAD)", value=int(projet.get('Budget_MAD', 0) or 0))
+                    charge_e = st.number_input("Charge (j/h)", value=int(projet.get('Charge_JH', 0) or 0))
+                    nb_interv_e = st.number_input("Nb intervenants", value=int(projet.get('Nb_Intervenants', 1) or 1))
+                
+                with c2:
+                    complexite_opts = ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"]
+                    risque_opts = ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"]
+                    engagement_opts = ["2=Minimal", "3=Modéré", "4=Impliqué", "5=Très impliqué"]
+                    freq_opts = ["1=Mensuelle", "2=Bi-mensuelle", "3=Hebdo", "4=Bi-hebdo"]
+                    dispersion_opts = ["1=1 site", "2=2 sites", "3=National", "4=International"]
+                    
+                    def _idx(opts, val, default=0):
+                        return opts.index(val) if val in opts else default
+                    
+                    complexite_e = st.selectbox("Complexité technique", complexite_opts, index=_idx(complexite_opts, projet.get('Complexite_Tech')))
+                    risque_e = st.selectbox("Niveau de risque", risque_opts, index=_idx(risque_opts, projet.get('Niveau_Risque')))
+                    engagement_e = st.selectbox("Engagement client", engagement_opts, index=_idx(engagement_opts, projet.get('Engagement_Client')))
+                    freq_e = st.selectbox("Fréquence instances", freq_opts, index=_idx(freq_opts, projet.get('Freq_Instances')))
+                    dispersion_e = st.selectbox("Dispersion géo", dispersion_opts, index=_idx(dispersion_opts, projet.get('Dispersion_Geo')))
+                    
+                    st.markdown("**Suivi**")
+                    duree_e = st.number_input("Durée (semaines)", value=int(projet.get('Duree_Semaines', 12) or 12))
+                    cpi_e = st.number_input("CPI", value=float(projet.get('CPI', 1.0) or 1.0), format="%.2f")
+                    spi_e = st.number_input("SPI", value=float(projet.get('SPI', 1.0) or 1.0), format="%.2f")
+                
+                commentaires_e = st.text_area("Commentaires", value=projet.get('Commentaires', '') or '')
                 
                 col_s, col_c = st.columns(2)
                 with col_s:
@@ -669,10 +721,29 @@ def page_projets():
                     cancel = st.form_submit_button("Annuler")
                 
                 if save:
-                    data = {'Nom_Projet': nom_e, 'Budget_MAD': budget_e,
-                            'Charge_JH': charge_e, 'Statut': statut_e}
+                    ponderations = dm.get_ponderations()
+                    algo = AlgorithmeAffectationV5(ponderations)
+                    criteres_icm = {
+                        'Charge_JH': charge_e, 'Complexite_Tech': complexite_e,
+                        'Budget_MAD': budget_e, 'Niveau_Risque': risque_e,
+                        'Nb_Intervenants': nb_interv_e, 'Engagement_Client': engagement_e,
+                        'Freq_Instances': freq_e, 'Dispersion_Geo': dispersion_e
+                    }
+                    icm_recalcule = algo.calculer_icm(criteres_icm)
+                    
+                    data = {
+                        'Nom_Projet': nom_e, 'ID_Client': client_e, 'Statut': statut_e,
+                        'Chef_Affecte': chef_e, 'Budget_MAD': budget_e, 'Charge_JH': charge_e,
+                        'Nb_Intervenants': nb_interv_e, 'Complexite_Tech': complexite_e,
+                        'Niveau_Risque': risque_e, 'Engagement_Client': engagement_e,
+                        'Freq_Instances': freq_e, 'Dispersion_Geo': dispersion_e,
+                        'Duree_Semaines': duree_e, 'CPI': cpi_e, 'SPI': spi_e,
+                        'Commentaires': commentaires_e,
+                        'Indice_Charge': icm_recalcule,
+                        'ICM_H_Semaine': round(icm_to_heures_semaine(icm_recalcule), 1),
+                    }
                     if dm.modifier_projet(projet_id, data):
-                        st.success("✅ Modifié")
+                        st.success(f"✅ Modifié (ICM recalculé = {icm_recalcule})")
                         st.session_state[f"editing_proj_{projet_id}"] = False
                         st.rerun()
                     else:
@@ -767,7 +838,17 @@ def page_chefs():
     if 'Taux_Charge_Pct' in df_display.columns:
         df_display['Taux_Charge_Pct'] = df_display['Taux_Charge_Pct'].apply(lambda x: f"{x:.0f}%")
     
-    st.dataframe(df_display, use_container_width=True, hide_index=True)
+    def highlight_surcharge(row):
+        try:
+            taux_num = float(str(row['Taux_Charge_Pct']).replace('%', ''))
+        except (ValueError, KeyError):
+            taux_num = 0
+        if taux_num > 100:
+            return ['background-color: #FADBD8; color: #922B21; font-weight: bold;'] * len(row)
+        return [''] * len(row)
+    
+    styler = df_display.style.apply(highlight_surcharge, axis=1).hide(axis='index')
+    st.dataframe(styler, use_container_width=True)
     
     st.markdown("---")
     
@@ -809,7 +890,7 @@ def page_chefs():
                 email_e = st.text_input("Email", value=chef.get('Email', ''))
                 exp_e = st.number_input("Années d'expérience", value=int(chef.get('Annees_Experience', 0) or 0))
                 capa_e = st.number_input("Capacité max", value=int(chef.get('Capacite_Max', 50) or 50))
-                statuts_possibles = ["Disponible", "Occupé", "Indisponible"]
+                statuts_possibles = ["Disponible", "Indisponible"]
                 statut_actuel = chef.get('Statut', 'Disponible')
                 idx_statut = statuts_possibles.index(statut_actuel) if statut_actuel in statuts_possibles else 0
                 statut_e = st.selectbox("Statut", statuts_possibles, index=idx_statut)
@@ -851,7 +932,7 @@ def main():
         
         page = st.radio(
             "Navigation",
-            ["Dashboard", "Affectation", "Projets", "Chefs"],
+            ["Dashboard", "Affectation", "Projets", "Chefs de projet"],
             key='page_selector'
         )
         
@@ -871,7 +952,7 @@ def main():
         page_affectation()
     elif page == "Projets":
         page_projets()
-    elif page == "Chefs":
+    elif page == "Chefs de projet":
         page_chefs()
 
 
