@@ -454,7 +454,7 @@ def page_affectation():
                         st.error(f"❌ Surcharge ! {reco['chef_nom']} dépasserait 40h/sem")
             
             # Détails dans expander (lecture seule)
-            with st.expander(f"Détails #{i}", expanded=(i == 1)):
+            with st.expander(f"Détails #{i}", expanded=True):
                 # Métriques
                 col1, col2, col3 = st.columns(3)
                 
