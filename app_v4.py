@@ -50,6 +50,14 @@ st.markdown("""
     border-radius: 10px;
     margin: 10px 0;
 }
+div[data-testid="stButton"] button[kind="primary"] {
+    background-color: #27AE60 !important;
+    border-color: #27AE60 !important;
+}
+div[data-testid="stButton"] button[kind="primary"]:hover {
+    background-color: #1E8449 !important;
+    border-color: #1E8449 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -134,37 +142,35 @@ def format_duree(semaines: float) -> str:
 
 def page_dashboard():
     """Page tableau de bord principal."""
-    st.title("📊 Dashboard PMO")
+    st.title("📈 Dashboard PMO")
     
     dm = get_data_manager()
     projets = dm.get_projets()
     chefs = dm.get_chefs()
     
+    if len(projets) == 0 or len(chefs) == 0:
+        st.warning("⚠️ Impossible de charger les données pour le moment (quota Google Sheets probablement dépassé). Réessayez dans une minute.")
+        return
+    
     # Métriques globales
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        # Gestion colonne Statut manquante
-        nb_en_cours = 0
+        # Total Projets = projets NON clôturés (pas le total brut de la feuille)
+        nb_non_clotures = len(projets[projets['Statut'] != 'Clôturé']) if 'Statut' in projets.columns else len(projets)
+        nb_affectes = 0
         if 'Statut' in projets.columns:
-            nb_en_cours = len(projets[projets['Statut']=='Actif'])
+            nb_affectes = len(projets[projets['Statut'] == 'Actif'])
         st.metric(
             "Total Projets",
-            len(projets),
-            delta=f"{nb_en_cours} en cours"
+            nb_non_clotures,
+            delta=f"{nb_affectes} affectés"
         )
     
     with col2:
-        # Compter chefs actifs correctement
-        nb_actifs = len(chefs)  # Tous les chefs récupérés sont actifs
-        st.metric(
-            "Total Chefs",
-            len(chefs),
-            delta=f"{nb_actifs} actifs"
-        )
+        st.metric("Total Chefs", len(chefs), delta=f"{len(chefs)} actifs")
     
     with col3:
-        # Gestion Chef_Affecte manquant
         projets_non_affectes = 0
         if 'Chef_Affecte' in projets.columns:
             projets_non_affectes = len(projets[
@@ -179,71 +185,56 @@ def page_dashboard():
         )
     
     with col4:
-        # Recalculer charge moyenne depuis les projets réels
         charges_reelles = []
         for _, chef in chefs.iterrows():
             chef_id = chef['ID_Chef']
             icc = chef.get('Capacite_Max', 100)
-            
-            # Somme ICM des projets actifs
             charge_icm = projets[
                 (projets['Chef_Affecte'] == chef_id) & 
                 (projets['Statut'] == 'Actif')
             ]['Indice_Charge'].sum()
-            
             taux = (charge_icm / icc * 100) if icc > 0 else 0
             charges_reelles.append(taux)
-        
         charge_moy = sum(charges_reelles) / len(charges_reelles) if charges_reelles else 0
-        
         st.metric(
             "Charge moyenne",
             f"{charge_moy:.0f}%",
             delta="OK" if charge_moy < 80 else "Élevé"
         )
     
+    with col5:
+        nb_surcharges = sum(1 for t in charges_reelles if t > 100)
+        st.metric(
+            "Chefs surchargés",
+            nb_surcharges,
+            delta="⚠️ À surveiller" if nb_surcharges > 0 else "OK"
+        )
+    
     st.markdown("---")
     
-    # Graphique synthèse chefs
-    st.subheader("📊 Vue d'ensemble des chefs")
+    # Vue d'ensemble des chefs (avec colonne Capacité Max ajoutée)
+    st.subheader("🧮 Vue d'ensemble des chefs")
     
-    # Calculer métriques réelles pour chaque chef
     chefs_summary = chefs.copy()
-    
     for idx, chef in chefs_summary.iterrows():
         chef_id = chef['ID_Chef']
-        
-        # Compter projets actifs réels
-        nb_projets = len(projets[
-            (projets['Chef_Affecte'] == chef_id) & 
-            (projets['Statut'] == 'Actif')
-        ])
-        
-        # Calculer charge réelle
-        charge_icm = projets[
-            (projets['Chef_Affecte'] == chef_id) & 
-            (projets['Statut'] == 'Actif')
-        ]['Indice_Charge'].sum()
-        
+        nb_projets = len(projets[(projets['Chef_Affecte'] == chef_id) & (projets['Statut'] == 'Actif')])
+        charge_icm = projets[(projets['Chef_Affecte'] == chef_id) & (projets['Statut'] == 'Actif')]['Indice_Charge'].sum()
         charge_h = charge_icm * 0.4
-        
-        # Calculer taux réel
         icc = chef['Capacite_Max']
         taux_reel = (charge_icm / icc * 100) if icc > 0 else 0
-        
-        # Mettre à jour
         chefs_summary.at[idx, 'Projets_Actifs'] = nb_projets
         chefs_summary.at[idx, 'Charge_H'] = charge_h
         chefs_summary.at[idx, 'Taux_Calc'] = taux_reel
     
-    # Tableau synthèse
-    df_summary_display = chefs_summary[['Nom_Prenom', 'Charge_H', 'Projets_Actifs', 'Taux_Calc']].copy()
+    df_summary_display = chefs_summary[['Nom_Prenom', 'Capacite_Max', 'Charge_H', 'Projets_Actifs', 'Taux_Calc']].copy()
     df_summary_display['Charge_H'] = df_summary_display['Charge_H'].apply(lambda x: f"{x:.1f}")
     df_summary_display['Taux_Calc'] = df_summary_display['Taux_Calc'].apply(lambda x: f"{x:.0f}%")
     
     st.dataframe(
         df_summary_display.rename(columns={
             'Nom_Prenom': 'Chef',
+            'Capacite_Max': 'Capacité Max (ICC)',
             'Charge_H': 'Charge (h/sem)',
             'Projets_Actifs': 'Nb Projets',
             'Taux_Calc': 'Taux'
@@ -254,15 +245,15 @@ def page_dashboard():
     
     st.markdown("---")
     
-    # Utilisation des chefs
+    # Utilisation des chefs — triée par charge décroissante
     st.subheader("👥 Utilisation des chefs de projet")
     
-    for _, chef in chefs_summary.iterrows():
-        # Exclure uniquement les chefs explicitement indisponibles
+    chefs_summary_sorted = chefs_summary.sort_values('Taux_Calc', ascending=False)
+    
+    for _, chef in chefs_summary_sorted.iterrows():
         if 'Statut' in chef.index and chef.get('Statut') == 'Indisponible':
             continue
         
-        # Utiliser taux calculé
         taux = chef.get('Taux_Calc', 0)
         couleur = get_color_taux(taux)
         
@@ -276,41 +267,22 @@ def page_dashboard():
             st.caption(f"{taux:.0f}%")
         
         with col3:
-            # Gestion ICC_H_Semaine manquante (calculer si besoin)
             icc = chef.get('Capacite_Max', 0)
-            if 'ICC_H_Semaine' in chef.index:
-                icc_h = chef.get('ICC_H_Semaine', 0)
-            else:
-                icc_h = icc * 0.4  # Conversion automatique
-            
+            icc_h = icc * 0.4
             charge_h = chef.get('Charge_H', 0)
-            st.metric(
-                "Charge",
-                f"{charge_h:.1f}h/sem",
-                delta=f"{icc_h - charge_h:.1f}h dispo"
-            )
+            st.metric("Charge", f"{charge_h:.1f}h/sem", delta=f"{icc_h - charge_h:.1f}h dispo")
         
         with col4:
-            st.metric(
-                "Projets",
-                int(chef.get('Projets_Actifs', 0))
-            )
+            st.metric("Projets", int(chef.get('Projets_Actifs', 0)))
         
-        # Détail projets (expander)
-        projets_chef = projets[
-            (projets['Chef_Affecte'] == chef['ID_Chef']) &
-            (projets['Statut'] == 'Actif')
-        ]
-        
+        projets_chef = projets[(projets['Chef_Affecte'] == chef['ID_Chef']) & (projets['Statut'] == 'Actif')]
         if len(projets_chef) > 0:
             with st.expander(f"{couleur} Détail projets"):
                 for _, p in projets_chef.iterrows():
                     icm_h = p.get('ICM_H_Semaine', 0)
-                    # Récupérer nom client
                     client_id = p.get('ID_Client', '')
                     client = dm.get_client_by_id(client_id)
                     client_nom = client.get('Nom_Client', client_id) if client else client_id
-                    
                     st.write(f"• **{p['ID_Projet']}** - {client_nom} - {p['Nom_Projet']} : {p['Indice_Charge']:.0f} pts ({icm_h:.1f}h/sem)")
 
 
@@ -320,7 +292,7 @@ def page_dashboard():
 
 def page_affectation():
     """Page d'affectation intelligente."""
-    st.title("🤖 Affectation Intelligente")
+    st.title("🧩 Affectation Intelligente")
     
     dm = get_data_manager()
     projets = dm.get_projets()
@@ -491,12 +463,11 @@ def page_affectation():
                     )
                 
                 with col3:
-                    delta_couleur = "inverse" if reco['surcharge'] else "normal"
                     st.metric(
                         "Charge si affecté",
                         f"{reco['charge_h_future']:.1f}h/sem",
                         delta=f"{reco['marge_h']:.1f}h marge",
-                        delta_color=delta_couleur
+                        delta_color="normal"
                     )
                 
                 # Alerte surcharge
