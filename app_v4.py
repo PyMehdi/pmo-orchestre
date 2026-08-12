@@ -347,6 +347,13 @@ def page_affectation():
     
     # Extraire ID_Projet de la sélection
     projet_id = projet_selection.split(' - ')[0]
+    
+    # Réinitialiser les recommandations si le projet sélectionné a changé
+    if st.session_state.get('projet_id_precedent') != projet_id:
+        st.session_state.pop('recommendations', None)
+        st.session_state.pop('projet_actuel', None)
+        st.session_state['projet_id_precedent'] = projet_id
+    
     projet = projets[projets['ID_Projet'] == projet_id].iloc[0].to_dict()
     
     # Affichage projet
