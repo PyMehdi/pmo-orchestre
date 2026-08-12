@@ -995,7 +995,7 @@ def page_planification():
         st.markdown("---")
         st.subheader("Vue par chef / semaine (heures prévues)")
         
-        # Construire les libellés de colonnes "Semaine X" + date du lundi (2 niveaux d'en-tête)
+        # Construire le tableau : ligne "Date" en haut, puis une ligne par chef
         semaine_to_date = planning_df.groupby('Semaine')['Lundi_Semaine'].first().to_dict()
         
         pivot = planning_df.pivot_table(
@@ -1003,12 +1003,22 @@ def page_planification():
         )
         pivot = pivot.reindex(sorted(pivot.columns), axis=1)
         
-        pivot.columns = pd.MultiIndex.from_tuples([
-            (f"S{s}", semaine_to_date[s].strftime('%d/%m/%Y') if pd.notna(semaine_to_date[s]) else '')
+        col_labels = [f"S{s}" for s in pivot.columns]
+        date_row = [
+            semaine_to_date[s].strftime('%d/%m/%Y') if pd.notna(semaine_to_date[s]) else ''
             for s in pivot.columns
-        ])
+        ]
         
-        st.dataframe(pivot.style.format("{:.1f}"), use_container_width=True)
+        pivot_display = pivot.applymap(lambda x: f"{x:.1f}")
+        pivot_display.columns = col_labels
+        pivot_display.columns.name = "Semaine"
+        
+        date_df = pd.DataFrame([date_row], columns=col_labels, index=["Date"])
+        date_df.columns.name = "Semaine"
+        
+        table_finale = pd.concat([date_df, pivot_display])
+        
+        st.dataframe(table_finale, use_container_width=True)
         
         st.markdown("---")
         st.subheader("Détail des lignes générées")
