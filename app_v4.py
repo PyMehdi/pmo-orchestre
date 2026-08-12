@@ -1049,9 +1049,12 @@ def page_planification():
 def check_password():
     """Affiche un champ mot de passe ; retourne True si correct."""
     def password_entered():
-        if st.session_state["password"] == st.secrets.get("app_password", ""):
+        entered = st.session_state.get("password", "")
+        attendu = st.secrets.get("app_password", "")
+        if entered.strip() == attendu.strip():
             st.session_state["password_correct"] = True
-            del st.session_state["password"]
+            if "password" in st.session_state:
+                del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
