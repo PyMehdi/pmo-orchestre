@@ -1021,16 +1021,17 @@ def page_planification():
         st.dataframe(table_finale, use_container_width=True)
         
         st.markdown("---")
-        st.subheader("Détail des lignes générées")
+        st.subheader("Évolution de la charge par chef")
         
-        detail_display = planning_df[['Semaine', 'Lundi_Semaine', 'Annee', 'Nom_Chef', 'Projet_ID', 'Projet_Nom', 'ICM', 'Charge_H']].copy()
-        detail_display['Lundi_Semaine'] = detail_display['Lundi_Semaine'].dt.strftime('%d/%m/%Y')
-        detail_display['Annee'] = detail_display['Annee'].astype(str)  # évite l'affichage "2,026"
-        detail_display['ICM'] = detail_display['ICM'].apply(lambda x: f"{x:.1f}")
-        detail_display['Charge_H'] = detail_display['Charge_H'].apply(lambda x: f"{x:.1f}")
-        detail_display = detail_display.rename(columns={'Lundi_Semaine': 'Date (lundi)'})
+        chart_data = pivot.copy()
+        chart_data.columns = [
+            semaine_to_date[s].strftime('%d/%m') if pd.notna(semaine_to_date[s]) else f"S{s}"
+            for s in pivot.columns
+        ]
+        chart_data = chart_data.T  # une ligne du graphe par chef, une colonne par semaine
+        chart_data.index.name = "Semaine"
         
-        st.dataframe(detail_display, use_container_width=True, hide_index=True)
+        st.line_chart(chart_data, use_container_width=True)
         st.caption(f"{len(planning_df)} lignes générées sur {nb_semaines} semaines")
         
         if st.button("💾 Enregistrer cette prévision dans Google Sheets"):
