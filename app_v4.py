@@ -104,7 +104,18 @@ def get_data_manager():
         credentials_file=credentials_file,
         sheet_id='1TFCyjjWZirBQG45xXnJ8vzHMo5YrhkiIwHdHaMx7lfs'
     )
+@st.cache_data(ttl=30)
+def cached_get_projets():
+    return get_data_manager().get_projets()
 
+@st.cache_data(ttl=30)
+def cached_get_chefs():
+    return get_data_manager().get_chefs()
+
+@st.cache_data(ttl=30)
+def cached_get_clients():
+    return get_data_manager().get_clients()
+    
 def init_session_state():
     """Initialise les variables de session."""
     if 'page' not in st.session_state:
@@ -145,8 +156,8 @@ def page_dashboard():
     st.title("📈 Dashboard PMO")
     
     dm = get_data_manager()
-    projets = dm.get_projets()
-    chefs = dm.get_chefs()
+    projets = cached_get_projets()
+    chefs = cached_get_chefs()
     
     if len(projets) == 0 or len(chefs) == 0:
         st.warning("⚠️ Impossible de charger les données pour le moment (quota Google Sheets probablement dépassé). Réessayez dans une minute.")
@@ -323,8 +334,8 @@ def page_affectation():
     st.title("🧩 Affectation Intelligente")
     
     dm = get_data_manager()
-    projets = dm.get_projets()
-    chefs = dm.get_chefs()
+    projets = cached_get_projets()
+    chefs = cached_get_chefs()
     ponderations = dm.get_ponderations()
     
     # Sélection projet avec ID et Client
@@ -421,9 +432,9 @@ def page_affectation():
         recommendations = st.session_state['recommendations']
         projet = st.session_state['projet_actuel']
         
-        st.subheader("🏆 Top 3 Recommandations")
+        st.subheader(f"🏆 Classement des {len(recommendations)} chefs disponibles")
         
-        for i, reco in enumerate(recommendations[:3], 1):
+        for i, reco in enumerate(recommendations, 1):
             # Bouton d'affectation directement visible
             col_btn1, col_btn2 = st.columns([3, 1])
             
@@ -434,34 +445,38 @@ def page_affectation():
             
             with col_btn2:
                 btn_key = f"affecter_{projet['ID_Projet']}_{reco['chef_id']}_{i}"
+                confirm_key = f"confirm_surcharge_{projet['ID_Projet']}_{reco['chef_id']}_{i}"
                 
-                if st.button(f"✅ Affecter", key=btn_key, type="primary" if i==1 else "secondary"):
-                    if not reco['surcharge']:
-                        with st.spinner("Affectation en cours..."):
-                            dm_temp = get_data_manager()
-                            success = dm_temp.affecter_projet(
-                                projet['ID_Projet'],
-                                reco['chef_id']
-                            )
-                            
-                            if success:
-                                st.success(f"✅ Projet affecté à {reco['chef_nom']} !")
-                                st.balloons()
-                                # Nettoyer session state
-                                if 'recommendations' in st.session_state:
-                                    del st.session_state['recommendations']
-                                if 'projet_actuel' in st.session_state:
-                                    del st.session_state['projet_actuel']
-                                import time
-                                time.sleep(2)
-                                st.rerun()
-                            else:
-                                st.error("❌ Erreur lors de l'affectation")
-                    else:
-                        st.error(f"❌ Surcharge ! {reco['chef_nom']} dépasserait 40h/sem")
+                if reco['surcharge']:
+                    st.checkbox("⚠️ Je confirme malgré la surcharge", key=confirm_key)
+                
+                peut_affecter = (not reco['surcharge']) or st.session_state.get(confirm_key, False)
+                
+                if st.button(f"✅ Affecter", key=btn_key, type="primary" if i==1 else "secondary", disabled=not peut_affecter):
+                    with st.spinner("Affectation en cours..."):
+                        dm_temp = get_data_manager()
+                        success = dm_temp.affecter_projet(
+                            projet['ID_Projet'],
+                            reco['chef_id']
+                        )
+                        
+                        if success:
+                            cached_get_projets.clear()
+                            cached_get_chefs.clear()
+                            st.success(f"✅ Projet affecté à {reco['chef_nom']} !")
+                            st.balloons()
+                            if 'recommendations' in st.session_state:
+                                del st.session_state['recommendations']
+                            if 'projet_actuel' in st.session_state:
+                                del st.session_state['projet_actuel']
+                            import time
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error("❌ Erreur lors de l'affectation")
             
             # Détails dans expander (lecture seule)
-            with st.expander(f"Détails #{i}", expanded=True):
+            with st.expander(f"Détails #{i}", expanded=(i <= 3)):
                 # Métriques
                 col1, col2, col3 = st.columns(3)
                 
@@ -533,8 +548,8 @@ def page_projets():
     st.title("📁 Gestion des Projets")
     
     dm = get_data_manager()
-    projets = dm.get_projets()
-    chefs = dm.get_chefs()
+    projets = cached_get_projets()
+    chefs = cached_get_chefs()
     
     if len(projets) == 0:
         st.warning("⚠️ Impossible de charger les projets pour le moment (quota Google Sheets probablement dépassé). Réessayez dans une minute.")
@@ -544,7 +559,7 @@ def page_projets():
     # CREATION D'UN NOUVEAU PROJET
     # ========================================
     with st.expander("➕ Créer un nouveau projet"):
-        clients_df = dm.get_clients()
+        clients_df = cached_get_clients()
         clients_options = clients_df['ID_Client'].tolist() if len(clients_df) > 0 else []
         
         with st.form("form_nouveau_projet"):
@@ -583,20 +598,26 @@ def page_projets():
                     }
                     icm_calcule = algo.calculer_icm(criteres_icm)
                     
-                    data = {
-                        'Nom_Projet': nom_projet, 'ID_Client': id_client,
-                        'Budget_MAD': budget, 'Charge_JH': charge_jh,
-                        'Complexite_Tech': complexite, 'Niveau_Risque': risque,
-                        'Nb_Intervenants': nb_interv, 'Engagement_Client': engagement,
-                        'Freq_Instances': freq, 'Dispersion_Geo': dispersion,
-                        'Indice_Charge': icm_calcule,
-                        'ICM_H_Semaine': round(icm_to_heures_semaine(icm_calcule), 1),
-                        'Date_Debut': str(date_debut), 'Duree_Semaines': duree,
-                        'Commentaires': commentaires
+                    ponderations = dm.get_ponderations()
+                    algo = AlgorithmeAffectationV5(ponderations)
+                    criteres_icc = {
+                        'Competences_Mgmt': mgmt, 'Annees_Experience': experience,
+                        'Competences_Tech': tech, 'Utilisation_IA': ia
                     }
-                    succes, resultat = dm.creer_projet(data)
+                    icc_calcule = algo.calculer_icc(criteres_icc)
+                    
+                    data = {
+                        'Nom_Prenom': nom, 'Email': email,
+                        'Annees_Experience': experience, 'Competences_Tech': tech,
+                        'Competences_Mgmt': mgmt, 'Utilisation_IA': ia,
+                        'Capacite_Max': icc_calcule, 'ICC_H_Semaine': round(icc_to_heures_semaine(icc_calcule), 1),
+                        'Secteurs_Expertise': secteurs,
+                        'Commentaires': commentaires, 'Statut': 'Disponible'
+                    }
+                    succes, resultat = dm.creer_chef(data)
+                    
                     if succes:
-                        st.success(f"✅ Projet {resultat} créé (ICM calculé = {icm_calcule}/100) !")
+                        st.success(f"✅ Chef {resultat} créé (ICC calculé = {icc_calcule}/100) !")
                         st.rerun()
                     else:
                         st.error(f"❌ Erreur : {resultat}")
@@ -631,7 +652,7 @@ def page_projets():
     colonnes_disponibles = [col for col in colonnes_affichees if col in df_filtre.columns]
     df_display = df_filtre[colonnes_disponibles].copy()
     
-    clients_df = dm.get_clients()
+    clients_df = cached_get_clients()
     map_clients = dict(zip(clients_df['ID_Client'], clients_df['Nom_Client'])) if len(clients_df) > 0 else {}
     df_display.insert(2, 'Nom_Client', df_filtre['ID_Client'].apply(lambda x: map_clients.get(x, x)))
     
@@ -799,8 +820,8 @@ def page_chefs():
     st.title("👥 Gestion des Chefs de Projet")
     
     dm = get_data_manager()
-    chefs = dm.get_chefs()
-    projets = dm.get_projets()
+    chefs = cached_get_chefs()
+    projets = cached_get_projets()
     
     # ========================================
     # CREATION D'UN NOUVEAU CHEF
@@ -968,7 +989,7 @@ def page_planification():
     st.title("📅 Planification Hebdomadaire")
     
     dm = get_data_manager()
-    chefs = dm.get_chefs()
+    chefs = cached_get_chefs()
     map_chefs_nom = dict(zip(chefs['ID_Chef'], chefs['Nom_Prenom'])) if len(chefs) > 0 else {}
     
     st.markdown("Génère une projection de la charge de chaque chef sur les semaines à venir, à partir des projets actifs et planifiés.")
