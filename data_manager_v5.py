@@ -560,31 +560,14 @@ class DataManagerV5:
         return pd.DataFrame(planning)
     
     def sauvegarder_planification_hebdo(self, planning_df: pd.DataFrame) -> bool:
-        """
-        Sauvegarde la planification dans Google Sheets.
-        
-        Args:
-            planning_df: DataFrame planification
-        
-        Returns:
-            True si succès
-        """
+        """Sauvegarde la planification dans Google Sheets (écriture en un seul appel)."""
         try:
             ws = self.spreadsheet.worksheet('Planification_Hebdo')
             
-            # Effacer contenu existant (sauf en-têtes)
-            ws.clear()
-            
-            # Écrire en-têtes
-            headers = [
-                'Semaine', 'Annee', 'Date', 'Chef_ID', 
-                'Projet_ID', 'Projet_Nom', 'ICM', 'Charge_H'
-            ]
-            ws.append_row(headers)
-            
-            # Écrire données
+            headers = ['Semaine', 'Annee', 'Date', 'Chef_ID', 'Projet_ID', 'Projet_Nom', 'ICM', 'Charge_H']
+            rows = [headers]
             for _, row in planning_df.iterrows():
-                ws.append_row([
+                rows.append([
                     int(row['Semaine']),
                     int(row['Annee']),
                     row['Date'].strftime('%Y-%m-%d') if pd.notna(row['Date']) else '',
@@ -595,9 +578,11 @@ class DataManagerV5:
                     float(row['Charge_H'])
                 ])
             
+            ws.clear()
+            ws.update('A1', rows)
+            
             print(f"✅ Planification sauvegardée ({len(planning_df)} lignes)")
             return True
-            
         except Exception as e:
             print(f"❌ Erreur sauvegarde planification : {str(e)}")
             return False
