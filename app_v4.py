@@ -654,7 +654,7 @@ def page_projets():
                 lambda x: f"{x:.1f}" if pd.notna(x) else ''
             )
             
-    styler = df_display.style.applymap(color_statut, subset=['Statut']).hide(axis='index')
+    styler = df_display.style.map(color_statut, subset=['Statut']).hide(axis='index')
     st.dataframe(styler, use_container_width=True)
     st.caption(f"**{len(df_filtre)}** projet(s) affiché(s)")
     
