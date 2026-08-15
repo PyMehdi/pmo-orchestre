@@ -610,20 +610,18 @@ def page_projets():
                     icm_calcule = algo.calculer_icm(criteres_icm)
 
                     date_fin_prev = date_debut + timedelta(weeks=duree)
-                    
-                    date_fin_prev_e = date_debut_e + timedelta(weeks=duree_e)
-                    
+
                     data = {
-                        'Nom_Projet': nom_e, 'ID_Client': client_e, 'Statut': statut_e,
-                        'Chef_Affecte': chef_e, 'Budget_MAD': budget_e, 'Charge_JH': charge_e,
-                        'Nb_Intervenants': nb_interv_e, 'Complexite_Tech': complexite_e,
-                        'Niveau_Risque': risque_e, 'Engagement_Client': engagement_e,
-                        'Freq_Instances': freq_e, 'Dispersion_Geo': dispersion_e,
-                        'Date_Debut': str(date_debut_e), 'Date_Fin_Prev': str(date_fin_prev_e),
-                        'Duree_Semaines': duree_e, 'CPI': cpi_e, 'SPI': spi_e,
-                        'Commentaires': commentaires_e,
-                        'Indice_Charge': icm_recalcule,
-                        'ICM_H_Semaine': round(icm_to_heures_semaine(icm_recalcule), 1),
+                        'Nom_Projet': nom_projet, 'ID_Client': id_client,
+                        'Budget_MAD': budget, 'Charge_JH': charge_jh,
+                        'Complexite_Tech': complexite, 'Niveau_Risque': risque,
+                        'Nb_Intervenants': nb_interv, 'Engagement_Client': engagement,
+                        'Freq_Instances': freq, 'Dispersion_Geo': dispersion,
+                        'Indice_Charge': icm_calcule,
+                        'ICM_H_Semaine': round(icm_to_heures_semaine(icm_calcule), 1),
+                        'Date_Debut': str(date_debut), 'Date_Fin_Prev': str(date_fin_prev),
+                        'Duree_Semaines': duree,
+                        'Commentaires': commentaires
                     }
                     succes, resultat = dm.creer_projet(data)
                     if succes:
@@ -805,12 +803,15 @@ def page_projets():
                     }
                     icm_recalcule = algo.calculer_icm(criteres_icm)
 
+                    date_fin_prev_e = date_debut_e + timedelta(weeks=duree_e)
+
                     data = {
                         'Nom_Projet': nom_e, 'ID_Client': client_e, 'Statut': statut_e,
                         'Chef_Affecte': chef_e, 'Budget_MAD': budget_e, 'Charge_JH': charge_e,
                         'Nb_Intervenants': nb_interv_e, 'Complexite_Tech': complexite_e,
                         'Niveau_Risque': risque_e, 'Engagement_Client': engagement_e,
                         'Freq_Instances': freq_e, 'Dispersion_Geo': dispersion_e,
+                        'Date_Debut': str(date_debut_e), 'Date_Fin_Prev': str(date_fin_prev_e),
                         'Duree_Semaines': duree_e, 'CPI': cpi_e, 'SPI': spi_e,
                         'Commentaires': commentaires_e,
                         'Indice_Charge': icm_recalcule,
