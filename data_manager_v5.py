@@ -333,7 +333,7 @@ class DataManagerV5:
             data.setdefault('Statut', 'Disponible')
             
             ligne = [data.get(h, '') for h in headers]
-            ws.append_row(ligne)
+            ws.append_row(ligne, table_range='A1')
             
             print(f"✅ Chef {nouvel_id} créé")
             return True, nouvel_id
@@ -617,7 +617,7 @@ class DataManagerV5:
             data.setdefault('Chef_Affecte', '')
             
             ligne = [data.get(h, '') for h in headers]
-            ws.append_row(ligne)
+            ws.append_row(ligne, table_range='A1')
             
             print(f"✅ Projet {nouvel_id} créé")
             return True, nouvel_id
