@@ -418,15 +418,24 @@ def page_affectation():
 
         st.subheader(f"🏆 Classement des {len(recommendations)} chefs disponibles")
 
-        for i, reco in enumerate(recommendations, 1):
+       for i, reco in enumerate(recommendations, 1):
+            is_favori = reco.get('is_favori', False)
+            
+            if is_favori:
+                st.markdown(
+                    "<div style='background-color:#FEF5E7; border-left:6px solid #E67E22; "
+                    "padding:10px 14px; border-radius:6px; margin-bottom:8px;'>"
+                    "⭐ <strong>CHEF FAVORI DU CLIENT</strong> — affecté par préférence, "
+                    "indépendamment de son classement par score"
+                    "</div>",
+                    unsafe_allow_html=True
+                )
+            
             # Bouton d'affectation directement visible
             col_btn1, col_btn2 = st.columns([3, 1])
 
             with col_btn1:
-                # Badge chef favori
-                favori_badge = " ⭐ **CHEF FAVORI CLIENT**" if reco.get('is_favori', False) else ""
-                st.write(f"**#{i} - {reco['chef_nom']}** (Score {reco['score']:.0f}/100){favori_badge}")
-
+                st.write(f"**#{i} - {reco['chef_nom']}** (Score {reco['score']:.0f}/100)")
             with col_btn2:
                 btn_key = f"affecter_{projet['ID_Projet']}_{reco['chef_id']}_{i}"
                 confirm_key = f"confirm_surcharge_{projet['ID_Projet']}_{reco['chef_id']}_{i}"
@@ -550,10 +559,11 @@ def page_projets():
             col1, col2 = st.columns(2)
             with col1:
                 nom_projet = st.text_input("Nom du projet *")
-                id_client = st.selectbox("Client *", clients_options)
-                budget = st.number_input("Budget (MAD)", min_value=0, value=100000, step=10000)
-                charge_jh = st.number_input("Charge (jours/homme)", min_value=0, value=50)
-                nb_interv = st.number_input("Nombre d'intervenants", min_value=1, value=5)
+                map_clients_nom = dict(zip(clients_df['ID_Client'], clients_df['Nom_Client'])) if len(clients_df) > 0 else {}
+                id_client = st.selectbox("Client *", clients_options, format_func=lambda x: map_clients_nom.get(x, x))
+                budget = st.number_input("Budget (MAD)", min_value=0, value=0, step=10000)
+                charge_jh = st.number_input("Charge (jours/homme)", min_value=0, value=0)
+                nb_interv = st.number_input("Nombre d'intervenants", min_value=0, value=0)
             with col2:
                 complexite = st.selectbox("Complexité technique", ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"])
                 risque = st.selectbox("Niveau de risque", ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"])
@@ -562,7 +572,7 @@ def page_projets():
                 dispersion = st.selectbox("Dispersion géographique", ["1=1 site", "2=2 sites", "3=National", "4=International"])
 
             date_debut = st.date_input("Date de début")
-            duree = st.number_input("Durée (semaines)", min_value=1, value=12)
+            duree = st.number_input("Durée (semaines)", min_value=0, value=0)
             commentaires = st.text_area("Commentaires")
 
             submitted = st.form_submit_button("Créer le projet", type="primary")
@@ -582,6 +592,8 @@ def page_projets():
                     }
                     icm_calcule = algo.calculer_icm(criteres_icm)
 
+                    date_fin_prev = date_debut + timedelta(weeks=duree)
+                    
                     data = {
                         'Nom_Projet': nom_projet, 'ID_Client': id_client,
                         'Budget_MAD': budget, 'Charge_JH': charge_jh,
@@ -590,7 +602,8 @@ def page_projets():
                         'Freq_Instances': freq, 'Dispersion_Geo': dispersion,
                         'Indice_Charge': icm_calcule,
                         'ICM_H_Semaine': round(icm_to_heures_semaine(icm_calcule), 1),
-                        'Date_Debut': str(date_debut), 'Duree_Semaines': duree,
+                        'Date_Debut': str(date_debut), 'Date_Fin_Prev': str(date_fin_prev),
+                        'Duree_Semaines': duree,
                         'Commentaires': commentaires
                     }
                     succes, resultat = dm.creer_projet(data)
