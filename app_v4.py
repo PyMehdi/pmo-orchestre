@@ -14,6 +14,7 @@ Date v5: Aout 2026
 
 import streamlit as st
 import pandas as pd
+import altair as alt
 from datetime import datetime, timedelta
 import sys
 
@@ -1114,13 +1115,28 @@ def page_planification():
         st.markdown("---")
         st.subheader("Évolution de la charge par chef")
 
-        chart_data = pivot.copy()
-        chart_data.columns = [cle_to_date[c] for c in pivot.columns]  # vrais objets date, pas du texte
-        chart_data = chart_data.T
-        chart_data.index.name = "Date"
-        chart_data = chart_data.sort_index()  # tri chronologique explicite, par sécurité
+        MOIS_FR = {1: 'jan', 2: 'fév', 3: 'mar', 4: 'avr', 5: 'mai', 6: 'juin',
+                   7: 'juil', 8: 'août', 9: 'sep', 10: 'oct', 11: 'nov', 12: 'déc'}
 
-        st.line_chart(chart_data, use_container_width=True)
+        def label_fr(d):
+            return f"{d.day:02d} {MOIS_FR[d.month]}"
+
+        cles_ordre = sorted(pivot.columns)
+        labels_fr_ordonnes = [label_fr(cle_to_date[c]) for c in cles_ordre]
+
+        chart_data = pivot.copy()
+        chart_data.columns = [label_fr(cle_to_date[c]) for c in pivot.columns]
+        chart_data_t = chart_data.T.reset_index()
+        chart_data_t = chart_data_t.rename(columns={'index': 'Date'})
+
+        chart_long = chart_data_t.melt(id_vars='Date', var_name='Chef', value_name='Charge')
+
+        chart = alt.Chart(chart_long).mark_line(point=True).encode(
+            x=alt.X('Date:N', sort=labels_fr_ordonnes, title='Semaine'),
+            y=alt.Y('Charge:Q', title='Charge (h/semaine)'),
+            color=alt.Color('Chef:N', title='Chef')
+        )
+        st.altair_chart(chart, use_container_width=True)
         st.caption(f"{len(planning_df)} lignes générées sur {nb_semaines} semaines")
 
         if st.button("💾 Enregistrer cette prévision dans Google Sheets"):
