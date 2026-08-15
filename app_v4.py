@@ -144,6 +144,9 @@ def page_dashboard():
     projets = cached_get_projets()
     chefs = cached_get_chefs()
 
+    clients_dashboard = cached_get_clients()
+    map_clients_dashboard = dict(zip(clients_dashboard['ID_Client'], clients_dashboard['Nom_Client'])) if len(clients_dashboard) > 0 else {}
+    
     if len(projets) == 0 or len(chefs) == 0:
         st.warning("⚠️ Impossible de charger les données pour le moment (quota Google Sheets probablement dépassé). Réessayez dans une minute.")
         return
@@ -277,8 +280,7 @@ def page_dashboard():
                 for _, p in projets_chef.iterrows():
                     icm_h = p.get('ICM_H_Semaine', 0)
                     client_id = p.get('ID_Client', '')
-                    client = dm.get_client_by_id(client_id)
-                    client_nom = client.get('Nom_Client', client_id) if client else client_id
+                    client_nom = map_clients_dashboard.get(client_id, client_id)
                     st.write(f"• **{p['ID_Projet']}** - {client_nom} - {p['Nom_Projet']} : {p['Indice_Charge']:.0f} pts ({icm_h:.1f}h/sem)")
 
     st.markdown("---")
@@ -1052,14 +1054,14 @@ def page_planification():
 
         st.markdown("---")
         st.subheader("Vue par chef / semaine (heures prévues)")
-
-        # Construire le tableau : ligne "Date" en haut, puis une ligne par chef
+        
         semaine_to_date = planning_df.groupby('Semaine')['Lundi_Semaine'].first().to_dict()
-
+        
         pivot = planning_df.pivot_table(
             index='Nom_Chef', columns='Semaine', values='Charge_H', aggfunc='sum', fill_value=0
         )
-        pivot = pivot.reindex(sorted(pivot.columns), axis=1)
+        semaines_triees = sorted(pivot.columns, key=lambda s: semaine_to_date[s])
+        pivot = pivot.reindex(semaines_triees, axis=1)
 
         col_labels = [f"S{s}" for s in pivot.columns]
         date_row = [
