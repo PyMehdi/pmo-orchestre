@@ -420,7 +420,7 @@ def page_affectation():
 
         st.subheader(f"🏆 Classement des {len(recommendations)} chefs disponibles")
 
-       for i, reco in enumerate(recommendations, 1):
+        for i, reco in enumerate(recommendations, 1):
             is_favori = reco.get('is_favori', False)
             
             if is_favori:
