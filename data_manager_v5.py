@@ -129,13 +129,9 @@ class DataManagerV5:
         return None
     
     def get_projets_non_affectes(self) -> pd.DataFrame:
-        """Récupère les projets sans chef affecté."""
+        """Récupère les projets à affecter (Statut = 'En attente', critère de référence)."""
         df = self.get_projets()
-        return df[
-            (df['Chef_Affecte'].isna()) | 
-            (df['Chef_Affecte'] == '') |
-            (df['Chef_Affecte'] == 'Non affecté')
-        ]
+        return df[df['Statut'].astype(str).str.strip() == 'En attente']
     
     def get_projets_en_cours(self) -> pd.DataFrame:
         """Récupère les projets en cours."""
