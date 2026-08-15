@@ -608,7 +608,7 @@ class DataManagerV5:
         prochain = max(nums) + 1 if nums else 1
         return f'PROJ-{prochain:03d}'
 
-   def creer_projet(self, data: Dict) -> Tuple[bool, str]:
+    def creer_projet(self, data: Dict) -> Tuple[bool, str]:
         """Crée un nouveau projet (ID généré automatiquement, Statut='En attente').
         
         Écrit à une ligne calculée explicitement (pas d'append_row automatique,
