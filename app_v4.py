@@ -567,11 +567,11 @@ def page_projets():
                 charge_jh = st.number_input("Charge (jours/homme)", min_value=0, value=0)
                 nb_interv = st.number_input("Nombre d'intervenants", min_value=0, value=0)
             with col2:
-                complexite = st.selectbox("Complexité technique", ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"])
-                risque = st.selectbox("Niveau de risque", ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"])
-                engagement = st.selectbox("Engagement client", ["2=Minimal", "3=Modéré", "4=Impliqué", "5=Très impliqué"])
-                freq = st.selectbox("Fréquence instances", ["1=Mensuelle", "2=Bi-mensuelle", "3=Hebdo", "4=Bi-hebdo"])
-                dispersion = st.selectbox("Dispersion géographique", ["1=1 site", "2=2 sites", "3=National", "4=International"])
+                complexite = st.selectbox("Complexité technique", ["1=Très faible", "2=Faible", "3=Moyen", "4=Élevée", "5=Très élevée"])
+                risque = st.selectbox("Niveau de risque", ["1=Très faible", "2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"])
+                engagement = st.selectbox("Engagement client", ["2=Minimal", "3=Modéré", "4=Impliqué"])
+                freq = st.selectbox("Fréquence instances", ["1=Mensuelle", "2=Bi-mensuelle", "3=Hebdo", "4=Bi-hebdo", "5=Quotidienne"])
+                dispersion = st.selectbox("Dispersion géographique", ["1=1 site", "2=2 sites proximité", "3=Multi-sites national", "4=International"])
 
             date_debut = st.date_input("Date de début")
             duree = st.number_input("Durée (semaines)", min_value=0, value=0)
@@ -744,11 +744,11 @@ def page_projets():
                     nb_interv_e = st.number_input("Nb intervenants", value=int(projet.get('Nb_Intervenants', 1) or 1))
 
                 with c2:
-                    complexite_opts = ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"]
-                    risque_opts = ["2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"]
-                    engagement_opts = ["2=Minimal", "3=Modéré", "4=Impliqué", "5=Très impliqué"]
-                    freq_opts = ["1=Mensuelle", "2=Bi-mensuelle", "3=Hebdo", "4=Bi-hebdo"]
-                    dispersion_opts = ["1=1 site", "2=2 sites", "3=National", "4=International"]
+                    complexite_opts = ["1=Très faible", "2=Faible", "3=Moyen", "4=Élevée", "5=Très élevée"]
+                    risque_opts = ["1=Très faible", "2=Faible", "3=Moyen", "4=Élevé", "5=Très élevé"]
+                    engagement_opts = ["2=Minimal", "3=Modéré", "4=Impliqué"]
+                    freq_opts = ["1=Mensuelle", "2=Bi-mensuelle", "3=Hebdo", "4=Bi-hebdo", "5=Quotidienne"]
+                    dispersion_opts = ["1=1 site", "2=2 sites proximité", "3=Multi-sites national", "4=International"]
 
                     def _idx(opts, val, default=0):
                         return opts.index(val) if val in opts else default
