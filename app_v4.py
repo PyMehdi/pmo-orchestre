@@ -1114,12 +1114,10 @@ def page_planification():
         st.subheader("Évolution de la charge par chef")
 
         chart_data = pivot.copy()
-        chart_data.columns = [
-            cle_to_date[c].strftime('%d/%m/%y') if pd.notna(cle_to_date[c]) else f"S{cle_to_label[c]}"
-            for c in pivot.columns
-        ]
-        chart_data = chart_data.T  # une ligne du graphe par chef, une colonne par semaine
-        chart_data.index.name = "Semaine"
+        chart_data.columns = [cle_to_date[c] for c in pivot.columns]  # vrais objets date, pas du texte
+        chart_data = chart_data.T
+        chart_data.index.name = "Date"
+        chart_data = chart_data.sort_index()  # tri chronologique explicite, par sécurité
 
         st.line_chart(chart_data, use_container_width=True)
         st.caption(f"{len(planning_df)} lignes générées sur {nb_semaines} semaines")
