@@ -310,7 +310,22 @@ def page_dashboard():
         st.metric("Projets en dérive", nb_derive,
                    delta="⚠️ À surveiller" if nb_derive > 0 else "OK")
 
-
+    st.markdown("---")
+    with st.expander("🛠️ Outils de maintenance"):
+        st.warning("⚠️ Action globale : recalcule ET écrase les valeurs ICM (Indice_Charge, ICM_H_Semaine) de TOUS les projets, et ICC (Capacite_Max, ICC_H_Semaine) de TOUS les chefs, selon la formule officielle actuelle. Utile pour aligner d'anciennes données saisies avant la V5.")
+        confirmer_recalcul = st.checkbox("Je confirme vouloir recalculer et écraser ces valeurs pour tous les enregistrements")
+        if st.button("🔄 Recalculer tous les ICM/ICC", disabled=not confirmer_recalcul):
+            with st.spinner("Recalcul en cours..."):
+                ponderations = dm.get_ponderations()
+                algo = AlgorithmeAffectationV5(ponderations)
+                succes, message = dm.recalculer_tous_icm_icc(algo)
+                if succes:
+                    cached_get_projets.clear()
+                    cached_get_chefs.clear()
+                    st.success(f"✅ {message}")
+                else:
+                    st.error(f"❌ Erreur : {message}")
+                    
 # ========================================
 # PAGE : AFFECTATION INTELLIGENTE
 # ========================================
