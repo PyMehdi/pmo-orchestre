@@ -333,9 +333,13 @@ class DataManagerV5:
             data.setdefault('Projets_Actifs', 0)
             
             ligne = [data.get(h, '') for h in headers]
-            ws.append_row(ligne, table_range='A1')
             
-            print(f"✅ Chef {nouvel_id} créé")
+            df_existant = self.get_chefs()
+            ligne_cible = len(df_existant) + 2
+            
+            ws.update(f'A{ligne_cible}', [ligne])
+            
+            print(f"✅ Chef {nouvel_id} créé (ligne {ligne_cible})")
             return True, nouvel_id
         except Exception as e:
             print(f"❌ Erreur création chef : {str(e)}")
@@ -604,8 +608,11 @@ class DataManagerV5:
         prochain = max(nums) + 1 if nums else 1
         return f'PROJ-{prochain:03d}'
     
-    def creer_projet(self, data: Dict) -> Tuple[bool, str]:
-        """Crée un nouveau projet (ID généré automatiquement, Statut='En attente')."""
+   def creer_projet(self, data: Dict) -> Tuple[bool, str]:
+        """Crée un nouveau projet (ID généré automatiquement, Statut='En attente').
+        
+        Écrit à une ligne calculée explicitement (pas d'append_row automatique,
+        peu fiable sur cette feuille dont la grille s'étend bien au-delà des données)."""
         try:
             ws = self.spreadsheet.worksheet('Projets')
             headers = ws.row_values(1)
@@ -617,9 +624,13 @@ class DataManagerV5:
             data.setdefault('Chef_Affecte', '')
             
             ligne = [data.get(h, '') for h in headers]
-            ws.append_row(ligne, table_range='A1')
             
-            print(f"✅ Projet {nouvel_id} créé")
+            df_existant = self.get_projets()
+            ligne_cible = len(df_existant) + 2  # +1 pour l'en-tête, +1 pour la 1ère ligne libre
+            
+            ws.update(f'A{ligne_cible}', [ligne])
+            
+            print(f"✅ Projet {nouvel_id} créé (ligne {ligne_cible})")
             return True, nouvel_id
         except Exception as e:
             print(f"❌ Erreur création projet : {str(e)}")
