@@ -331,6 +331,10 @@ class DataManagerV5:
             data = dict(data)
             data['ID_Chef'] = nouvel_id
             data.setdefault('Statut', 'Disponible')
+            data.setdefault('Capacite_Plafond_H', data.get('ICC_H_Semaine', ''))
+            data.setdefault('Charge_Actuelle', 0)
+            data.setdefault('Taux_Charge_Pct', 0)
+            data.setdefault('Projets_Actifs', 0)
             
             ligne = [data.get(h, '') for h in headers]
             ws.append_row(ligne, table_range='A1')
