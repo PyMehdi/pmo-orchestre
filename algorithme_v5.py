@@ -438,12 +438,9 @@ class AlgorithmeAffectationV5:
                 exp_secteur
             )
             
-            # BONUS : Chef favori du client (+10 points)
-            if chef_favori_id and chef['ID_Chef'] == chef_favori_id:
-                score = min(score + 10, 100)
-                is_favori = True
-            else:
-                is_favori = False
+            # Chef favori du client : identifié mais SANS bonus sur le score
+            # (il sera placé en tête par le tri ci-dessous, indépendamment de son score réel)
+            is_favori = bool(chef_favori_id and chef['ID_Chef'] == chef_favori_id)
             
             capacite_h = icc_to_heures_semaine(chef['Capacite_Max'])
             charge_future_h = util['charge_h_semaine'] + icm_to_heures_semaine(icm_projet)
@@ -463,7 +460,7 @@ class AlgorithmeAffectationV5:
                 'projets_actuels': util['details_projets']
             })
         
-        recommendations.sort(key=lambda x: x['score'], reverse=True)
+        recommendations.sort(key=lambda x: (not x['is_favori'], -x['score']))
         return recommendations
 
 
