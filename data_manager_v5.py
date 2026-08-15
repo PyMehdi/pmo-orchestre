@@ -480,6 +480,44 @@ class DataManagerV5:
                     'Competences_Tech': 25.0, 'Utilisation_IA': 10.0
                 }
             }    
+
+    # ========================================
+    # RECALCUL GLOBAL ICM / ICC
+    # ========================================
+    
+    def recalculer_tous_icm_icc(self, algo) -> Tuple[bool, str]:
+        """Recalcule et réécrit Indice_Charge/ICM_H_Semaine (Projets) et
+        Capacite_Max/ICC_H_Semaine (Chefs_Projets) pour TOUTES les lignes,
+        selon la formule officielle. Écriture en 2 appels batch (pas de
+        boucle ligne par ligne, pour ne pas dépasser le quota API)."""
+        try:
+            # --- Projets (colonnes M:N = Indice_Charge, ICM_H_Semaine) ---
+            ws_p = self.spreadsheet.worksheet('Projets')
+            df_p = self.get_projets()
+            valeurs_p = []
+            for _, row in df_p.iterrows():
+                icm = algo.calculer_icm(row.to_dict())
+                icm_h = round(icm * 0.4, 2)
+                valeurs_p.append([icm, icm_h])
+            if valeurs_p:
+                ws_p.update(f'M2:N{len(valeurs_p) + 1}', valeurs_p)
+            
+            # --- Chefs (colonnes L:M = Capacite_Max, ICC_H_Semaine) ---
+            ws_c = self.spreadsheet.worksheet('Chefs_Projets')
+            df_c = self.get_chefs()
+            valeurs_c = []
+            for _, row in df_c.iterrows():
+                icc = algo.calculer_icc(row.to_dict())
+                icc_h = round(icc * 0.4, 2)
+                valeurs_c.append([icc, icc_h])
+            if valeurs_c:
+                ws_c.update(f'L2:M{len(valeurs_c) + 1}', valeurs_c)
+            
+            return True, f"{len(valeurs_p)} projets et {len(valeurs_c)} chefs recalculés"
+        except Exception as e:
+            print(f"❌ Erreur recalcul global : {str(e)}")
+            return False, str(e)
+            
     # ========================================
     # PLANIFICATION HEBDOMADAIRE
     # ========================================
