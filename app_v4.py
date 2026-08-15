@@ -611,17 +611,19 @@ def page_projets():
 
                     date_fin_prev = date_debut + timedelta(weeks=duree)
                     
+                    date_fin_prev_e = date_debut_e + timedelta(weeks=duree_e)
+                    
                     data = {
-                        'Nom_Projet': nom_projet, 'ID_Client': id_client,
-                        'Budget_MAD': budget, 'Charge_JH': charge_jh,
-                        'Complexite_Tech': complexite, 'Niveau_Risque': risque,
-                        'Nb_Intervenants': nb_interv, 'Engagement_Client': engagement,
-                        'Freq_Instances': freq, 'Dispersion_Geo': dispersion,
-                        'Indice_Charge': icm_calcule,
-                        'ICM_H_Semaine': round(icm_to_heures_semaine(icm_calcule), 1),
-                        'Date_Debut': str(date_debut), 'Date_Fin_Prev': str(date_fin_prev),
-                        'Duree_Semaines': duree,
-                        'Commentaires': commentaires
+                        'Nom_Projet': nom_e, 'ID_Client': client_e, 'Statut': statut_e,
+                        'Chef_Affecte': chef_e, 'Budget_MAD': budget_e, 'Charge_JH': charge_e,
+                        'Nb_Intervenants': nb_interv_e, 'Complexite_Tech': complexite_e,
+                        'Niveau_Risque': risque_e, 'Engagement_Client': engagement_e,
+                        'Freq_Instances': freq_e, 'Dispersion_Geo': dispersion_e,
+                        'Date_Debut': str(date_debut_e), 'Date_Fin_Prev': str(date_fin_prev_e),
+                        'Duree_Semaines': duree_e, 'CPI': cpi_e, 'SPI': spi_e,
+                        'Commentaires': commentaires_e,
+                        'Indice_Charge': icm_recalcule,
+                        'ICM_H_Semaine': round(icm_to_heures_semaine(icm_recalcule), 1),
                     }
                     succes, resultat = dm.creer_projet(data)
                     if succes:
@@ -744,7 +746,7 @@ def page_projets():
                     st.markdown("**Identification**")
                     nom_e = st.text_input("Nom du projet", value=projet.get('Nom_Projet', ''))
                     idx_client = clients_options_edit.index(projet.get('ID_Client')) if projet.get('ID_Client') in clients_options_edit else 0
-                    client_e = st.selectbox("Client", clients_options_edit, index=idx_client)
+                    client_e = st.selectbox("Client", clients_options_edit, index=idx_client, format_func=lambda x: map_clients.get(x, x))
                     statuts_possibles = ["En attente", "Actif", "Clôturé"]
                     statut_actuel = projet.get('Statut', 'En attente')
                     idx_statut = statuts_possibles.index(statut_actuel) if statut_actuel in statuts_possibles else 0
@@ -775,6 +777,11 @@ def page_projets():
                     dispersion_e = st.selectbox("Dispersion géo", dispersion_opts, index=_idx(dispersion_opts, projet.get('Dispersion_Geo')))
 
                     st.markdown("**Suivi**")
+                    date_debut_actuelle = pd.to_datetime(projet.get('Date_Debut'), errors='coerce')
+                    date_debut_e = st.date_input(
+                        "Date de début",
+                        value=date_debut_actuelle.date() if pd.notna(date_debut_actuelle) else datetime.now().date()
+                    )
                     duree_e = st.number_input("Durée (semaines)", value=int(projet.get('Duree_Semaines', 12) or 12))
                     cpi_e = st.number_input("CPI", value=float(projet.get('CPI', 1.0) or 1.0), format="%.2f")
                     spi_e = st.number_input("SPI", value=float(projet.get('SPI', 1.0) or 1.0), format="%.2f")
@@ -1063,25 +1070,33 @@ def page_planification():
         # Nom du chef au lieu de l'ID
         planning_df['Nom_Chef'] = planning_df['Chef_ID'].apply(lambda x: map_chefs_nom.get(x, x))
 
-        # Date du lundi (premier jour) de chaque semaine, à partir de la date générée
+        # Date réelle (timestamp complet) de chaque ligne générée
         planning_df['Date'] = pd.to_datetime(planning_df['Date'], errors='coerce')
+
+        # Clé de tri chronologique unique : Annee + Semaine (pas juste Semaine,
+        # qui repart à 1 en janvier et casserait l'ordre sur une projection
+        # qui traverse un changement d'année)
+        planning_df['Cle_Semaine'] = planning_df['Annee'].astype(int) * 100 + planning_df['Semaine'].astype(int)
         planning_df['Lundi_Semaine'] = planning_df['Date'] - pd.to_timedelta(planning_df['Date'].dt.weekday, unit='D')
 
         st.markdown("---")
         st.subheader("Vue par chef / semaine (heures prévues)")
-        
-        semaine_to_date = planning_df.groupby('Semaine')['Lundi_Semaine'].first().to_dict()
-        
-        pivot = planning_df.pivot_table(
-            index='Nom_Chef', columns='Semaine', values='Charge_H', aggfunc='sum', fill_value=0
-        )
-        semaines_triees = sorted(pivot.columns, key=lambda s: semaine_to_date[s])
-        pivot = pivot.reindex(semaines_triees, axis=1)
 
-        col_labels = [f"S{s}" for s in pivot.columns]
+        # Correspondance clé -> date du lundi, et -> libellé "S32"
+        cle_to_date = planning_df.groupby('Cle_Semaine')['Lundi_Semaine'].first().to_dict()
+        cle_to_label = planning_df.groupby('Cle_Semaine')['Semaine'].first().to_dict()
+
+        pivot = planning_df.pivot_table(
+            index='Nom_Chef', columns='Cle_Semaine', values='Charge_H', aggfunc='sum', fill_value=0
+        )
+        # Tri strictement chronologique : par la clé Annee*100+Semaine, croissante
+        cles_triees = sorted(pivot.columns)
+        pivot = pivot.reindex(cles_triees, axis=1)
+
+        col_labels = [f"S{cle_to_label[c]}" for c in pivot.columns]
         date_row = [
-            semaine_to_date[s].strftime('%d/%m/%Y') if pd.notna(semaine_to_date[s]) else ''
-            for s in pivot.columns
+            cle_to_date[c].strftime('%d/%m/%Y') if pd.notna(cle_to_date[c]) else ''
+            for c in pivot.columns
         ]
 
         pivot_display = pivot.applymap(lambda x: f"{x:.1f}")
@@ -1100,8 +1115,8 @@ def page_planification():
 
         chart_data = pivot.copy()
         chart_data.columns = [
-            semaine_to_date[s].strftime('%d/%m') if pd.notna(semaine_to_date[s]) else f"S{s}"
-            for s in pivot.columns
+            cle_to_date[c].strftime('%d/%m/%y') if pd.notna(cle_to_date[c]) else f"S{cle_to_label[c]}"
+            for c in pivot.columns
         ]
         chart_data = chart_data.T  # une ligne du graphe par chef, une colonne par semaine
         chart_data.index.name = "Semaine"
@@ -1128,7 +1143,6 @@ def page_planification():
         st.dataframe(planning_existant[colonnes_dispo], use_container_width=True, hide_index=True)
     else:
         st.info("Aucune prévision enregistrée pour le moment.")
-
 
 # ========================================
 # MENU PRINCIPAL
