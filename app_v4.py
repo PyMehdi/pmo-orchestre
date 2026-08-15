@@ -360,7 +360,7 @@ def page_affectation():
     client_id = projet.get('ID_Client', '')
     client = dm.get_client_by_id(client_id)
     client_nom = client.get('Nom_Client', client_id) if client else client_id
-    chef_favori_id = client.get('Chef_Favori', '') if client else ''
+    chef_favori_id = client.get('Chef_Defaut', '') if client else ''
 
     # Afficher infos projet + client
     st.info(f"📋 **Client :** {client_nom} ({client_id})")
@@ -398,14 +398,14 @@ def page_affectation():
 
             if client_id:
                 client = dm.get_client_by_id(client_id)
-                if client and 'Chef_Favori' in client:
-                    chef_favori_id = client.get('Chef_Favori')
+                if client and 'Chef_Defaut' in client:
+                    chef_favori_id = client.get('Chef_Defaut')
                     # Récupérer nom du chef favori
                     if chef_favori_id:
                         chef_fav = chefs[chefs['ID_Chef'] == chef_favori_id]
                         if len(chef_fav) > 0:
                             chef_favori_nom = chef_fav.iloc[0]['Nom_Prenom']
-                            st.success(f"⭐ **Chef favori du client :** {chef_favori_nom} ({chef_favori_id})")
+                            st.success(f"⭐ **Chef projet du compte :** {chef_favori_nom} ({chef_favori_id})")
 
             recommendations = algo.recommander_affectation(
                 projet, chefs, projets, chef_favori_id=chef_favori_id
@@ -427,7 +427,7 @@ def page_affectation():
                 st.markdown(
                     "<div style='background-color:#FEF5E7; border-left:6px solid #E67E22; "
                     "padding:10px 14px; border-radius:6px; margin-bottom:8px;'>"
-                    "⭐ <strong>CHEF FAVORI DU CLIENT</strong> — affecté par préférence, "
+                    "⭐ <strong>CHEF PROJET DU COMPTE</strong> — affecté par préférence, "
                     "indépendamment de son classement par score"
                     "</div>",
                     unsafe_allow_html=True
