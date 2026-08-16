@@ -222,12 +222,15 @@ def page_dashboard():
         charge_icm = projets[(projets['Chef_Affecte'] == chef_id) & (projets['Statut'] == 'Actif')]['Indice_Charge'].sum()
         charge_h = charge_icm * 0.4
         icc = chef['Capacite_Max']
+        capacite_h = icc * 0.4
         taux_reel = (charge_icm / icc * 100) if icc > 0 else 0
         chefs_summary.at[idx, 'Projets_Actifs'] = nb_projets
         chefs_summary.at[idx, 'Charge_H'] = charge_h
+        chefs_summary.at[idx, 'Capacite_H'] = capacite_h
         chefs_summary.at[idx, 'Taux_Calc'] = taux_reel
 
-    df_summary_display = chefs_summary[['Nom_Prenom', 'Capacite_Max', 'Charge_H', 'Projets_Actifs', 'Taux_Calc']].copy()
+    df_summary_display = chefs_summary[['Nom_Prenom', 'Capacite_Max', 'Capacite_H', 'Projets_Actifs', 'Charge_H', 'Taux_Calc']].copy()
+    df_summary_display['Capacite_H'] = df_summary_display['Capacite_H'].apply(lambda x: f"{x:.1f}")
     df_summary_display['Charge_H'] = df_summary_display['Charge_H'].apply(lambda x: f"{x:.1f}")
     df_summary_display['Taux_Calc'] = df_summary_display['Taux_Calc'].apply(lambda x: f"{x:.0f}%")
 
@@ -235,8 +238,9 @@ def page_dashboard():
         df_summary_display.rename(columns={
             'Nom_Prenom': 'Chef',
             'Capacite_Max': 'Capacité Max (ICC)',
-            'Charge_H': 'Charge (h/sem)',
+            'Capacite_H': 'Capacité Max (h/sem)',
             'Projets_Actifs': 'Nb Projets',
+            'Charge_H': 'Charge actuelle (h/sem)',
             'Taux_Calc': 'Taux'
         }),
         use_container_width=True,
@@ -347,10 +351,16 @@ def page_affectation():
         st.info("✅ Tous les projets sont affectés !")
         return
 
-    # Créer liste affichage avec ID + Client + Nom
+    # Créer liste affichage avec ID + Client (nom) + Nom + ICM
+    clients_df_aff = cached_get_clients()
+    map_clients_aff = dict(zip(clients_df_aff['ID_Client'], clients_df_aff['Nom_Client'])) if len(clients_df_aff) > 0 else {}
+    
     projets_options = []
     for _, p in projets_non_affectes.iterrows():
-        option = f"{p['ID_Projet']} - {p.get('ID_Client', 'N/A')} - {p['Nom_Projet']}"
+        nom_client = map_clients_aff.get(p.get('ID_Client', ''), p.get('ID_Client', 'N/A'))
+        icm_pts = p.get('Indice_Charge', 0)
+        icm_h = p.get('ICM_H_Semaine', icm_pts * 0.4)
+        option = f"{p['ID_Projet']} - {nom_client} - {p['Nom_Projet']} : {icm_pts:.0f} pts ({icm_h:.1f}h/sem)"
         projets_options.append(option)
 
     projet_selection = st.selectbox(
@@ -578,7 +588,11 @@ def page_projets():
             with col1:
                 nom_projet = st.text_input("Nom du projet *")
                 map_clients_nom = dict(zip(clients_df['ID_Client'], clients_df['Nom_Client'])) if len(clients_df) > 0 else {}
-                id_client = st.selectbox("Client *", clients_options, format_func=lambda x: map_clients_nom.get(x, x))
+                clients_options_avec_vide = [''] + clients_options
+                id_client = st.selectbox(
+                    "Client *", clients_options_avec_vide,
+                    format_func=lambda x: map_clients_nom.get(x, x) if x else "— Sélectionner un client —"
+                )
                 budget = st.number_input("Budget (MAD)", min_value=0, value=0, step=10000)
                 charge_jh = st.number_input("Charge (jours/homme)", min_value=0, value=0)
                 nb_interv = st.number_input("Nombre d'intervenants", min_value=0, value=0)
